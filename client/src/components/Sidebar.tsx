@@ -9,8 +9,8 @@ import {
   BookOpen,
   Network,
   Settings,
-  ShieldCheck,
-  Building2
+  Building2,
+  Shield
 } from 'lucide-react';
 
 export type ModuleType =
@@ -39,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems = [
     { id: 'overview' as ModuleType, label: 'Overview', icon: LayoutDashboard },
-    { id: 'leads' as ModuleType, label: 'Leads', icon: Users },
+    { id: 'leads' as ModuleType, label: 'Leads & Segments', icon: Users },
     { id: 'campaigns' as ModuleType, label: 'Campaigns', icon: Send },
     {
       id: 'inbox' as ModuleType,
@@ -62,27 +62,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="w-64 bg-navy-900 text-slate-300 flex flex-col h-screen select-none border-r border-slate-800 shrink-0">
       {/* Brand Header */}
-      <div className="p-5 flex items-center gap-3 border-b border-slate-800">
-        <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20">
+      <div className="p-5 flex items-center gap-3 border-b border-slate-800/80">
+        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-xs">
           S
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-white text-base tracking-wide">SENVO</span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+            <span className="font-bold text-white text-sm tracking-wide">SENVO</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">
               Outreach
             </span>
           </div>
-          <p className="text-xs text-slate-400">AI Client Response System</p>
+          <p className="text-[11px] text-slate-400">Client Response Operations</p>
         </div>
       </div>
 
       {/* Target Market Context Pill */}
-      <div className="mx-4 mt-3 p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 text-xs flex items-center gap-2 text-slate-300">
-        <Building2 className="w-4 h-4 text-cyan-400 shrink-0" />
+      <div className="mx-3.5 mt-3.5 p-2 rounded-lg bg-slate-800/40 border border-slate-700/50 text-xs flex items-center gap-2.5 text-slate-300">
+        <Building2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
         <div className="truncate">
-          <p className="font-medium text-slate-200 truncate">Ireland Corporate Practice</p>
-          <p className="text-[11px] text-slate-400">Dublin • Cork • Galway</p>
+          <p className="font-medium text-slate-200 text-[11px] truncate">Ireland Corporate Services</p>
+          <p className="text-[10px] text-slate-400">Dublin • Cork • Galway</p>
         </div>
       </div>
 
@@ -95,10 +95,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => setActiveModule(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/70'
+                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -107,8 +107,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               {item.badge !== undefined && (
                 <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-blue-900/60 text-cyan-300 border border-cyan-800/50'
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-cyan-300 border border-slate-700'
                   }`}
                 >
                   {item.badge}
@@ -119,22 +119,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </nav>
 
-      {/* Safety & Simulation Status Banner */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/40 text-xs space-y-2">
-        <div className="flex items-center gap-2 text-amber-400 font-medium">
-          <ShieldCheck className="w-4 h-4 shrink-0 text-amber-400" />
-          <span>Simulation Safety Active</span>
-        </div>
-        <p className="text-[11px] text-slate-400 leading-tight">
-          All messaging simulated via local adapters. No real external outbound sent.
-        </p>
-        <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400">
+      {/* Production Workspace Footer */}
+      <div className="p-4 border-t border-slate-800/80 bg-slate-950/20 text-xs space-y-2">
+        <div className="flex items-center justify-between text-[11px] text-slate-400">
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            SQLite Persistent
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            Database Active
           </span>
-          <span className="text-slate-400">v2.0 (Phase 2)</span>
+          <span className="text-slate-500 font-mono">v2.4</span>
         </div>
+        <p className="text-[10px] text-slate-500 leading-tight">
+          SENVO Outreach Platform • Enterprise Staging
+        </p>
       </div>
     </aside>
   );

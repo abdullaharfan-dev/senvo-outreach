@@ -5,7 +5,6 @@ import {
   Sparkles,
   Bot,
   User,
-  ShieldCheck,
   Building2,
   Mail,
   Linkedin,
@@ -23,13 +22,11 @@ import type { Conversation, Message, AiAssessment, ChannelType } from '../types'
 
 interface InboxModuleProps {
   initialConversationId?: string | null;
-  onSimulateInbound: () => void;
   onNavigateToQualified: () => void;
 }
 
 export const InboxModule: React.FC<InboxModuleProps> = ({
   initialConversationId,
-  onSimulateInbound,
   onNavigateToQualified,
 }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -53,7 +50,6 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
       });
       setConversations(data);
 
-      // Default selection if none selected
       if (!selectedConvId && data.length > 0) {
         setSelectedConvId(data[0].id);
       }
@@ -68,7 +64,6 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
     try {
       const details = await api.getConversationDetails(id);
       setSelectedConv(details);
-      // Auto populate draft if an approved assessment exists
       if (details.assessments && details.assessments.length > 0 && !replyText) {
         setReplyText(details.assessments[0].suggested_reply);
       }
@@ -82,6 +77,12 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
     const interval = setInterval(fetchConversations, 3000);
     return () => clearInterval(interval);
   }, [channelFilter, statusFilter, search]);
+
+  useEffect(() => {
+    if (initialConversationId) {
+      setSelectedConvId(initialConversationId);
+    }
+  }, [initialConversationId]);
 
   useEffect(() => {
     if (selectedConvId) {
@@ -101,7 +102,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
       const updated = await api.sendMessage(selectedConvId, {
         content: replyText,
         is_ai_generated: isAi,
-        sender_name: isAi ? 'SENVO AI SDR' : 'SENVO Advisory Team',
+        sender_name: isAi ? 'SENVO Client Advisory' : 'SENVO Team',
       });
       setSelectedConv(updated);
       setReplyText('');
@@ -120,8 +121,8 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
     try {
       await api.qualifyLead({
         leadId: selectedConv.lead_id,
-        requested_service: latestAi?.requested_service || 'Corporate Services & Accounting',
-        qualification_summary: latestAi?.summary || 'Qualified lead requiring discovery engagement.',
+        requested_service: latestAi?.requested_service || 'Corporate Services & Statutory Accounting',
+        qualification_summary: latestAi?.summary || 'Qualified corporate lead requiring discovery consultation.',
         assigned_owner: 'Senior Client Partner (Dublin Practice)',
         next_action: latestAi?.suggested_next_action || 'Schedule discovery consultation call',
       });
@@ -184,13 +185,10 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
           ))}
         </div>
 
-        <button
-          onClick={onSimulateInbound}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Simulate Reply Here</span>
-        </button>
+        <div className="text-xs text-slate-500 font-medium">
+          <span>Active Threads: </span>
+          <span className="font-bold text-slate-800">{conversations.length}</span>
+        </div>
       </div>
 
       {/* Main 3-Column Inbox Layout */}
@@ -202,7 +200,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filter by company, contact..."
+              placeholder="Filter by company, decision maker..."
               className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -258,7 +256,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                         </span>
                         {c.status === 'review_needed' && (
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
-                            Review
+                            Action Needed
                           </span>
                         )}
                       </div>
@@ -296,9 +294,8 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-amber-600" />
-                    <span>Simulated Channel Mode</span>
+                  <span className="text-[11px] font-medium text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded">
+                    Channel: {selectedConv.channel === 'email' ? 'Microsoft 365 Exchange' : selectedConv.channel === 'linkedin' ? 'LinkedIn InMail' : selectedConv.channel === 'whatsapp' ? 'WhatsApp Business' : selectedConv.channel}
                   </span>
                 </div>
               </div>
@@ -317,7 +314,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                           <span className="font-semibold text-slate-700">{msg.sender_name}</span>
                         ) : (
                           <span className="font-semibold text-blue-700">
-                            {msg.is_ai_generated ? 'SENVO AI SDR' : 'SENVO Advisory'}
+                            {msg.is_ai_generated ? 'SENVO Automated Assistant' : 'SENVO Advisory Team'}
                           </span>
                         )}
                         <span>•</span>
@@ -327,8 +324,6 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                             minute: '2-digit',
                           })}
                         </span>
-                        <span>•</span>
-                        <span className="text-amber-600 font-medium">[Simulated]</span>
                       </div>
 
                       <div
@@ -351,14 +346,14 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
               {/* Outbound Reply Composer */}
               <div className="p-4 bg-white border-t border-slate-200 shrink-0 space-y-2.5">
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className="font-semibold text-slate-700">Reply Composer (Simulated Dispatch)</span>
+                  <span className="font-semibold text-slate-700">Response Composer</span>
                   {latestAssessment && (
                     <button
                       onClick={() => setReplyText(latestAssessment.suggested_reply)}
                       className="text-blue-600 hover:text-blue-800 font-semibold text-xs flex items-center gap-1 cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>Use Gemini Draft</span>
+                      <span>Insert Recommended Reply</span>
                     </button>
                   )}
                 </div>
@@ -368,17 +363,17 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                     rows={3}
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Type an outbound response to send via simulated channel..."
+                    placeholder="Type an outbound response to send to prospect..."
                     className="w-full text-xs border border-slate-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans pr-24"
                   />
                   <div className="absolute right-2 bottom-2.5 flex items-center gap-1.5">
                     <button
                       onClick={() => handleSendReply(false)}
                       disabled={sending || !replyText.trim()}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                     >
                       <Send className="w-3 h-3" />
-                      <span>{sending ? 'Sending...' : 'Send'}</span>
+                      <span>{sending ? 'Sending...' : 'Send Reply'}</span>
                     </button>
                   </div>
                 </div>
@@ -386,12 +381,12 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
-              Select a conversation to view the thread and AI assessment.
+              Select a conversation to view thread history and qualification analysis.
             </div>
           )}
         </div>
 
-        {/* Right: Lead Context & Genuine Gemini AI Intelligence */}
+        {/* Right: Lead Context & SENVO Intelligence Panel */}
         <div className="w-80 md:w-96 bg-white border-l border-slate-200 overflow-y-auto p-5 space-y-5 shrink-0">
           {selectedConv && (
             <>
@@ -428,29 +423,29 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                 </div>
               </div>
 
-              {/* Gemini AI Intelligence Card */}
+              {/* SENVO Intelligence Analysis Card */}
               {latestAssessment ? (
                 <div className="space-y-3.5 p-4 rounded-xl bg-gradient-to-br from-blue-50/70 to-indigo-50/50 border border-blue-200 shadow-2xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs">
                       <Sparkles className="w-4 h-4 text-blue-600" />
-                      <span>Gemini AI Assessment</span>
+                      <span>SENVO Intelligence Analysis</span>
                     </div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                      {(latestAssessment.confidence * 100).toFixed(0)}% Confidence
+                      {(latestAssessment.confidence * 100).toFixed(0)}% Match
                     </span>
                   </div>
 
                   {/* Intent & Service */}
                   <div className="space-y-1.5">
                     <div className="text-[11px]">
-                      <span className="text-slate-500 font-medium">Classified Intent: </span>
+                      <span className="text-slate-500 font-medium">Detected Intent: </span>
                       <span className="font-bold text-blue-900 capitalize">
                         {latestAssessment.intent.replace(/_/g, ' ')}
                       </span>
                     </div>
                     <div className="text-[11px]">
-                      <span className="text-slate-500 font-medium">Requested Service: </span>
+                      <span className="text-slate-500 font-medium">Requested Service Line: </span>
                       <span className="font-semibold text-slate-800">
                         {latestAssessment.requested_service}
                       </span>
@@ -460,7 +455,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                   {/* Executive Summary */}
                   <div className="text-xs bg-white/80 p-2.5 rounded-lg border border-blue-100/80 leading-relaxed text-slate-700">
                     <span className="font-semibold text-slate-900 block mb-0.5 text-[11px]">
-                      Executive Summary:
+                      Requirement Summary:
                     </span>
                     {latestAssessment.summary}
                   </div>
@@ -468,7 +463,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                   {/* Suggested Next Action */}
                   <div className="text-xs bg-blue-100/60 p-2.5 rounded-lg border border-blue-200/60 leading-relaxed text-blue-950">
                     <span className="font-bold text-blue-900 block mb-0.5 text-[11px]">
-                      Recommended Sales Action:
+                      Recommended Follow-Up Action:
                     </span>
                     {latestAssessment.suggested_next_action}
                   </div>
@@ -476,7 +471,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                   {/* Suggested Draft */}
                   <div className="space-y-1.5">
                     <span className="font-semibold text-slate-700 text-[11px]">
-                      AI Generated Draft Reply:
+                      Recommended Response:
                     </span>
                     <p className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed font-sans italic">
                       "{latestAssessment.suggested_reply}"
@@ -487,7 +482,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                         onClick={() => setReplyText(latestAssessment.suggested_reply)}
                         className="flex-1 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                       >
-                        Load to Composer
+                        Load to Editor
                       </button>
                       <button
                         onClick={async () => {
@@ -496,7 +491,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                         }}
                         className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                       >
-                        Send Draft (Simulated)
+                        Send Recommended Reply
                       </button>
                     </div>
                   </div>
@@ -508,16 +503,16 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                       className="w-full py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Award className="w-3.5 h-3.5" />
-                      <span>Qualify & Stage Bitrix24 Handoff</span>
+                      <span>Qualify & Stage CRM Handoff</span>
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500 space-y-2">
                   <Bot className="w-6 h-6 text-slate-400 mx-auto" />
-                  <p className="font-medium text-slate-700">No AI Assessment Pending</p>
+                  <p className="font-medium text-slate-700">Awaiting Response</p>
                   <p className="text-[11px] text-slate-400">
-                    Trigger an incoming message using the button above to execute live Gemini classification.
+                    When a prospect responds, SENVO automated intelligence will classify intent and prepare recommended follow-up actions.
                   </p>
                 </div>
               )}

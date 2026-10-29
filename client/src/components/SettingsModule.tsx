@@ -9,11 +9,18 @@ import {
   Lock,
   Building2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  FlaskConical,
+  MessageSquare
 } from 'lucide-react';
 import { api } from '../services/api';
 
-export const SettingsModule: React.FC<{ onReset: () => void }> = ({ onReset }) => {
+interface SettingsModuleProps {
+  onReset: () => void;
+  onOpenTestSimulator?: () => void;
+}
+
+export const SettingsModule: React.FC<SettingsModuleProps> = ({ onReset, onOpenTestSimulator }) => {
   const [health, setHealth] = useState<any>(null);
   const [loadingHealth, setLoadingHealth] = useState<boolean>(true);
   const [resetting, setResetting] = useState<boolean>(false);
@@ -109,11 +116,48 @@ export const SettingsModule: React.FC<{ onReset: () => void }> = ({ onReset }) =
             />
           </div>
           <div>
-            <label className="block text-slate-500 font-medium mb-1">Simulation Mode</label>
-            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 font-semibold flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-amber-600" />
-              <span>Safe Simulated Mode (Zero Real External Dispatch)</span>
+            <label className="block text-slate-500 font-medium mb-1">Outreach Dispatch Mode</label>
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Compliance Sandbox (Verified Persistent Database Dispatch)</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Internal Testing & Scenario Simulation Sandbox */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <FlaskConical className="w-5 h-5 text-indigo-600" />
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Testing & Sandbox Tools</h3>
+              <p className="text-[11px] text-slate-500">Inject simulated inbound inquiries to evaluate AI triage and classification</p>
+            </div>
+          </div>
+          {onOpenTestSimulator && (
+            <button
+              onClick={onOpenTestSimulator}
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Launch Inbound Inquiry Simulator</span>
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
+            <span className="font-bold text-slate-800 block text-[11px]">Multi-Channel Inbound Evaluation</span>
+            <p className="text-[11px] leading-relaxed text-slate-500">
+              Trigger inquiries across any of the 7 supported channels (LinkedIn, WhatsApp, Email, Website Form, Facebook, Instagram, SMS).
+            </p>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
+            <span className="font-bold text-slate-800 block text-[11px]">Real-Time Gemini Intent Classification</span>
+            <p className="text-[11px] leading-relaxed text-slate-500">
+              Each test inquiry triggers the server-side Gemini AI engine to produce intent scores, Irish statutory grounding, and suggested response copy.
+            </p>
           </div>
         </div>
       </div>

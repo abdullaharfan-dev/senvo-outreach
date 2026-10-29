@@ -18,6 +18,61 @@ export interface Lead {
   updated_at: string;
 }
 
+export interface LeadSegment {
+  id: string;
+  name: string;
+  description: string;
+  channel_fit: string;
+  count: number;
+  lead_ids: string[];
+  sample_leads: Array<{
+    id: string;
+    company_name: string;
+    city: string;
+    priority: string;
+  }>;
+}
+
+export interface ValidatedLeadRecord {
+  index: number;
+  company_name: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  industry: string;
+  city: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'valid' | 'duplicate' | 'incomplete' | 'invalid';
+  issues: string[];
+  has_email: boolean;
+  has_phone: boolean;
+  eligible_channels: ChannelType[];
+  segment: string;
+}
+
+export interface ValidationResult {
+  total: number;
+  eligible: number;
+  duplicates: number;
+  incomplete: number;
+  records: ValidatedLeadRecord[];
+  segment_counts: {
+    multi_channel: number;
+    email_ready: number;
+    phone_ready: number;
+    linkedin_ready: number;
+  };
+}
+
+export interface ParseFileResult {
+  filename: string;
+  headers: string[];
+  suggestedMap: Record<string, string>;
+  rowCount: number;
+  sampleRows: any[];
+  rawRecords: any[];
+}
+
 export interface CampaignRecipient {
   id: string;
   campaign_id: string;

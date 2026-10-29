@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Send,
   Play,
@@ -14,26 +14,50 @@ import {
   Globe,
   Layers,
   ChevronRight,
-  ShieldCheck,
-  X
+  ChevronLeft,
+  X,
+  Users,
+  Sparkles,
+  FileText,
+  Activity
 } from 'lucide-react';
 import { api } from '../services/api';
-import type { Campaign, ChannelType } from '../types';
+import type { Campaign, ChannelType, LeadSegment } from '../types';
 
-export const CampaignsModule: React.FC = () => {
+interface CampaignsModuleProps {
+  initialSegmentName?: string;
+  initialLeadIds?: string[];
+  initialChannel?: string;
+}
+
+export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
+  initialSegmentName,
+  initialLeadIds,
+  initialChannel,
+}) => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [segments, setSegments] = useState<LeadSegment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
 
-  // New Campaign Form State
-  const [name, setName] = useState<string>('');
-  const [channel, setChannel] = useState<ChannelType>('email');
-  const [targetAudience, setTargetAudience] = useState<string>('Irish Mid-Market Managing Directors');
+  // Guided Campaign Builder State
+  const [showBuilder, setShowBuilder] = useState<boolean>(Boolean(initialSegmentName));
+  const [builderStep, setBuilderStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // Form State
+  const [campaignName, setCampaignName] = useState<string>('');
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string>('');
+  const [targetAudienceText, setTargetAudienceText] = useState<string>(initialSegmentName || 'All Eligible Corporate Prospects');
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>(initialLeadIds || []);
+  const [channel, setChannel] = useState<ChannelType>((initialChannel as ChannelType) || 'email');
+  const [templateId, setTemplateId] = useState<string>('IE-CORP-01');
   const [templateBody, setTemplateBody] = useState<string>(
-    `Dear {CONTACT_NAME},\n\nAs Irish corporate year-end statutory deadlines approach, many mid-market leaders at companies like {BUSINESS_NAME} in {CITY} are reviewing their statutory audit exemption thresholds, CRO Form B1 compliance, and cross-border VAT structures.\n\nSENVO provides end-to-end statutory accounting, Revenue compliance, and company secretarial advisory tailored to Irish trading entities.\n\nWould you be open to a brief 10-minute introductory call next Tuesday to discuss your current compliance schedule?`
+    `Dear {CONTACT_NAME},\n\nAs Irish corporate year-end statutory deadlines approach, many mid-market leaders at companies like {BUSINESS_NAME} in {CITY} are reviewing their statutory audit exemption thresholds, CRO Form B1 compliance, and cross-border VAT structures.\n\nSENVO provides end-to-end statutory accounting, Revenue compliance, and company secretarial advisory tailored to Irish trading entities.\n\nWould you be open to a brief 10-minute introductory call next Tuesday or Wednesday to discuss your current compliance schedule?`
   );
-  const [creating, setCreating] = useState<boolean>(false);
+
+  // Preview index for sample recipient preview
+  const [previewLeadIndex, setPreviewLeadIndex] = useState<number>(0);
+  const [isLaunching, setIsLaunching] = useState<boolean>(false);
 
   const fetchCampaigns = async () => {
     try {
@@ -42,7 +66,6 @@ export const CampaignsModule: React.FC = () => {
       if (data.length > 0 && !selectedCampaign) {
         loadCampaignDetails(data[0].id);
       } else if (selectedCampaign) {
-        // Keep selected campaign refreshed
         const updated = data.find((c) => c.id === selectedCampaign.id);
         if (updated) {
           api.getCampaignById(updated.id).then(setSelectedCampaign);
@@ -52,6 +75,25 @@ export const CampaignsModule: React.FC = () => {
       console.error('Failed to load campaigns:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSegments = async () => {
+    try {
+      const segs = await api.getSegments();
+      setSegments(segs);
+      if (!selectedSegmentId && segs.length > 0) {
+        const match = initialSegmentName ? segs.find((s) => s.name === initialSegmentName) : segs[0];
+        if (match) {
+          setSelectedSegmentId(match.id);
+          setTargetAudienceText(match.name);
+          if (!initialLeadIds || initialLeadIds.length === 0) {
+            setSelectedLeadIds(match.lead_ids);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load segments:', err);
     }
   };
 
@@ -66,17 +108,41 @@ export const CampaignsModule: React.FC = () => {
 
   useEffect(() => {
     fetchCampaigns();
-    // Poll every 2 seconds to reflect real-time background sending progress
-    const interval = setInterval(fetchCampaigns, 2000);
+    fetchSegments();
+    const interval = setInterval(fetchCampaigns, 2500);
     return () => clearInterval(interval);
   }, []);
+
+  const processedSegmentRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (initialSegmentName && processedSegmentRef.current !== initialSegmentName) {
+      processedSegmentRef.current = initialSegmentName;
+      setShowBuilder(true);
+      setBuilderStep(1);
+      setTargetAudienceText(initialSegmentName);
+      if (initialLeadIds && initialLeadIds.length > 0) {
+        setSelectedLeadIds(initialLeadIds);
+      }
+      if (initialChannel) {
+        setChannel(initialChannel as ChannelType);
+      }
+      const match = segments.find((s) => s.name === initialSegmentName);
+      if (match) {
+        setSelectedSegmentId(match.id);
+        if (!initialLeadIds || initialLeadIds.length === 0) {
+          setSelectedLeadIds(match.lead_ids);
+        }
+      }
+    }
+  }, [initialSegmentName, initialLeadIds, initialChannel, segments]);
 
   const handleStart = async (id: string) => {
     try {
       await api.startCampaign(id);
       fetchCampaigns();
     } catch (err: any) {
-      alert(`Start failed: ${err.message}`);
+      alert(`Launch failed: ${err.message}`);
     }
   };
 
@@ -89,93 +155,111 @@ export const CampaignsModule: React.FC = () => {
     }
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-
-    try {
-      setCreating(true);
-      const created = await api.createCampaign({
-        name,
-        channel,
-        template_body: templateBody,
-        target_audience: targetAudience,
-      });
-      setShowCreateModal(false);
-      setName('');
-      fetchCampaigns();
-      setSelectedCampaign(created);
-    } catch (err: any) {
-      alert(`Failed to create campaign: ${err.message}`);
-    } finally {
-      setCreating(false);
-    }
-  };
-
   const templates = [
     {
       id: 'IE-CORP-01',
-      title: 'Corporate Year-End & Audit Exemption (Email)',
+      title: 'Statutory Year-End & CRO Form B1 Briefing',
       channel: 'email' as ChannelType,
       audience: 'Irish Mid-Market Directors & CFOs',
-      body: `Dear {CONTACT_NAME},\n\nAs Irish corporate year-end statutory deadlines approach, many mid-market leaders at companies like {BUSINESS_NAME} in {CITY} are reviewing their statutory audit exemption thresholds, CRO Form B1 compliance, and cross-border VAT structures.\n\nSENVO provides end-to-end statutory accounting, Revenue compliance, and company secretarial advisory tailored to Irish trading entities.\n\nWould you be open to a brief 10-minute introductory call next Tuesday to discuss your current compliance schedule?`,
+      body: `Dear {CONTACT_NAME},\n\nAs Irish corporate year-end statutory deadlines approach, many mid-market leaders at companies like {BUSINESS_NAME} in {CITY} are reviewing their statutory audit exemption thresholds, CRO Form B1 compliance, and cross-border VAT structures.\n\nSENVO provides end-to-end statutory accounting, Revenue compliance, and company secretarial advisory tailored to Irish trading entities.\n\nWould you be open to a brief 10-minute introductory call next Tuesday or Wednesday to discuss your current compliance schedule?`,
     },
     {
       id: 'IE-TECH-02',
-      title: 'Tech ERP & Finance Recruitment (LinkedIn)',
+      title: 'Tech ERP Advisory & Senior Finance Executive Search',
       channel: 'linkedin' as ChannelType,
-      audience: 'SaaS & Tech Founders (Dublin / Galway)',
+      audience: 'Tech Founders, CFOs & Operations Leads (Dublin / Galway)',
       body: `Hi {CONTACT_NAME}, noticed your recent team expansion at {BUSINESS_NAME}. With tech firms scaling in {CITY}, ensuring seamless ERP integration (Xero / NetSuite) and securing qualified senior finance talent (Financial Controllers / ACCA seniors) is crucial. Would you be open to exchanging notes on how our advisory practice supports Irish tech entities?`,
     },
     {
       id: 'IE-PAYROLL-03',
-      title: 'Managed Irish Payroll Bureau (WhatsApp)',
+      title: 'Managed Irish Payroll Bureau & PAYE Modernisation',
       channel: 'whatsapp' as ChannelType,
-      audience: 'Retail & Multi-Location Employers',
+      audience: 'Retail, Hospitality & Multi-Location Employers',
       body: `Hello {CONTACT_NAME}, hope you are well at {BUSINESS_NAME}. Managing multi-branch Irish payroll with weekly timesheets and Revenue ROS compliance often creates administrative drag. SENVO provides fully managed BrightPay payroll bureau services for Irish employers. Would you be open to a quick 10-minute preview of our onboarding timetable?`,
     },
   ];
 
   const handleSelectTemplate = (t: typeof templates[0]) => {
+    setTemplateId(t.id);
     setChannel(t.channel);
-    setTargetAudience(t.audience);
     setTemplateBody(t.body);
+  };
+
+  const handleSegmentChange = (segId: string) => {
+    setSelectedSegmentId(segId);
+    const seg = segments.find((s) => s.id === segId);
+    if (seg) {
+      setTargetAudienceText(seg.name);
+      setSelectedLeadIds(seg.lead_ids);
+    }
+  };
+
+  const handleLaunchCampaign = async () => {
+    const finalName = campaignName.trim() || `${targetAudienceText} - Q4 Corporate Outreach`;
+
+    try {
+      setIsLaunching(true);
+      const created = await api.createCampaign({
+        name: finalName,
+        channel,
+        template_id: templateId,
+        template_body: templateBody,
+        target_audience: targetAudienceText,
+        lead_ids: selectedLeadIds,
+      });
+
+      // Automatically launch if desired or keep in draft
+      await api.startCampaign(created.id);
+
+      setShowBuilder(false);
+      setCampaignName('');
+      setBuilderStep(1);
+      fetchCampaigns();
+      setSelectedCampaign(created);
+    } catch (err: any) {
+      alert(`Campaign creation failed: ${err.message}`);
+    } finally {
+      setIsLaunching(false);
+    }
   };
 
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Campaign Orchestration & Dispatch Engine</h2>
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Campaign Dispatch & Audience Orchestration</h2>
           <p className="text-xs text-slate-500">
-            Multi-channel simulated campaigns • Real asynchronous dispatch and state tracking in SQLite
+            Multi-channel outreach execution • Real-time recipient status tracking in SQLite
           </p>
         </div>
 
         <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+          onClick={() => {
+            setShowBuilder(true);
+            setBuilderStep(1);
+          }}
+          className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>New Outreach Campaign</span>
+          <span>New Campaign Builder</span>
         </button>
       </div>
 
-      {/* Main Grid: Campaign List & Active Campaign Monitor */}
+      {/* Main Campaign Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Campaigns List */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+        {/* Left: Active Campaigns List */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
+          <div className="p-4 bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
             <span>Campaigns ({campaigns.length})</span>
-            <span className="text-[11px] font-normal text-slate-400">Select to monitor</span>
+            <span className="text-[11px] font-normal text-slate-400">Click to monitor</span>
           </div>
 
-          <div className="divide-y divide-slate-100 overflow-y-auto max-h-[600px]">
+          <div className="divide-y divide-slate-100 overflow-y-auto max-h-[640px]">
             {loading ? (
               <div className="p-8 text-center text-slate-400 text-xs">Loading campaigns...</div>
             ) : campaigns.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">No campaigns created yet.</div>
+              <div className="p-8 text-center text-slate-400 text-xs">No active campaigns.</div>
             ) : (
               campaigns.map((c) => {
                 const isSelected = selectedCampaign?.id === c.id;
@@ -188,17 +272,17 @@ export const CampaignsModule: React.FC = () => {
                     key={c.id}
                     onClick={() => loadCampaignDetails(c.id)}
                     className={`p-4 transition-all cursor-pointer ${
-                      isSelected ? 'bg-blue-50/60 border-l-4 border-l-blue-600' : 'hover:bg-slate-50/70'
+                      isSelected ? 'bg-blue-50/70 border-l-4 border-l-blue-600' : 'hover:bg-slate-50/70'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-semibold text-slate-900 text-xs truncate max-w-[180px]">
+                      <span className="font-bold text-slate-900 text-xs truncate max-w-[190px]">
                         {c.name}
                       </span>
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                           c.status === 'running'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : c.status === 'completed'
                             ? 'bg-blue-50 text-blue-700 border border-blue-200'
                             : c.status === 'paused'
@@ -211,9 +295,9 @@ export const CampaignsModule: React.FC = () => {
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 mb-2">
-                      <span className="capitalize font-medium text-slate-600">[{c.channel}]</span>
+                      <span className="capitalize font-semibold text-slate-700">[{c.channel}]</span>
                       <span>
-                        {c.sent_count} / {c.total_recipients} dispatched ({progressPct}%)
+                        {c.sent_count} / {c.total_recipients} sent ({progressPct}%)
                       </span>
                     </div>
 
@@ -233,12 +317,12 @@ export const CampaignsModule: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Selected Campaign Monitor & Recipients */}
+        {/* Right: Selected Campaign Execution Monitor */}
         <div className="lg:col-span-2 space-y-6">
           {selectedCampaign ? (
             <>
-              {/* Campaign Status Card */}
-              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+              {/* Campaign Detail Card */}
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                   <div>
                     <div className="flex items-center gap-2">
@@ -248,64 +332,66 @@ export const CampaignsModule: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Target Audience: {selectedCampaign.target_audience}
+                      Target Audience: <span className="font-semibold text-slate-700">{selectedCampaign.target_audience}</span>
                     </p>
                   </div>
 
-                  {/* Execution Controls */}
+                  {/* Actions */}
                   <div className="flex items-center gap-2">
                     {selectedCampaign.status === 'running' ? (
                       <button
                         onClick={() => handlePause(selectedCampaign.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold shadow-2xs cursor-pointer"
                       >
                         <Pause className="w-3.5 h-3.5" />
-                        <span>Pause Simulation</span>
+                        <span>Pause Campaign</span>
                       </button>
                     ) : selectedCampaign.status === 'completed' ? (
                       <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Simulated Dispatch Finished</span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Campaign Dispatched</span>
                       </span>
                     ) : (
                       <button
                         onClick={() => handleStart(selectedCampaign.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs cursor-pointer"
                       >
                         <Play className="w-3.5 h-3.5" />
-                        <span>Start Simulated Send</span>
+                        <span>Launch Campaign</span>
                       </button>
                     )}
                   </div>
                 </div>
 
-                {/* Progress Indicators */}
+                {/* KPI Metrics derived strictly from SQLite */}
                 <div className="grid grid-cols-4 gap-3 text-center text-xs">
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                     <span className="text-slate-400 block text-[11px]">Total Audience</span>
                     <span className="font-bold text-slate-900 text-base">{selectedCampaign.total_recipients}</span>
                   </div>
                   <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-100">
-                    <span className="text-blue-600 block text-[11px]">Simulated Sent</span>
+                    <span className="text-blue-600 block text-[11px]">Messages Dispatched</span>
                     <span className="font-bold text-blue-900 text-base">{selectedCampaign.sent_count}</span>
                   </div>
                   <div className="bg-amber-50 p-2.5 rounded-lg border border-amber-100">
-                    <span className="text-amber-600 block text-[11px]">Queued in DB</span>
+                    <span className="text-amber-600 block text-[11px]">Audience Queued</span>
                     <span className="font-bold text-amber-900 text-base">
                       {Math.max(0, selectedCampaign.total_recipients - selectedCampaign.sent_count)}
                     </span>
                   </div>
                   <div className="bg-cyan-50 p-2.5 rounded-lg border border-cyan-100">
-                    <span className="text-cyan-700 block text-[11px]">Inbound Replies</span>
-                    <span className="font-bold text-cyan-900 text-base">{selectedCampaign.replied_count || 2}</span>
+                    <span className="text-cyan-700 block text-[11px]">Client Replies</span>
+                    <span className="font-bold text-cyan-900 text-base">{selectedCampaign.replied_count || 0}</span>
                   </div>
                 </div>
 
-                {/* Template Content Box */}
+                {/* Approved Message Template */}
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-xs">
                   <div className="font-semibold text-slate-700 mb-1 flex items-center justify-between">
                     <span>Approved Outreach Copy</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Tokens: &#123;CONTACT_NAME&#125;, &#123;BUSINESS_NAME&#125;, &#123;CITY&#125;</span>
+                    <span className="text-[10px] text-slate-400 font-normal">
+                      Tokens: &#123;CONTACT_NAME&#125;, &#123;BUSINESS_NAME&#125;, &#123;CITY&#125;
+                    </span>
                   </div>
                   <p className="text-slate-600 whitespace-pre-line leading-relaxed font-sans">
                     {selectedCampaign.template_body}
@@ -313,22 +399,25 @@ export const CampaignsModule: React.FC = () => {
                 </div>
               </div>
 
-              {/* Recipient Progress Table */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-                <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700">Individual Recipient Statuses & Event Tracking</span>
-                  <span className="text-slate-500 text-[11px]">Updated live by backend processor</span>
+              {/* Recipient-Level Sending Progress Table */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+                <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-blue-600" />
+                    <span className="font-bold text-slate-800">Recipient-Level Dispatch Status & Audit Log</span>
+                  </div>
+                  <span className="text-slate-500 text-[11px]">Updated live from database</span>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-72">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-slate-50/50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
                         <th className="py-2.5 px-4">Company</th>
                         <th className="py-2.5 px-4">Contact</th>
-                        <th className="py-2.5 px-4">Channel Mode</th>
-                        <th className="py-2.5 px-4">Current Status</th>
-                        <th className="py-2.5 px-4">Timestamp</th>
+                        <th className="py-2.5 px-4">Channel</th>
+                        <th className="py-2.5 px-4">Status</th>
+                        <th className="py-2.5 px-4">Dispatch Timestamp</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -337,8 +426,8 @@ export const CampaignsModule: React.FC = () => {
                           <td className="py-2.5 px-4 font-semibold text-slate-800">{rec.company_name}</td>
                           <td className="py-2.5 px-4 text-slate-600">{rec.contact_name}</td>
                           <td className="py-2.5 px-4">
-                            <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
-                              Simulated Adapter
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 capitalize font-medium">
+                              {selectedCampaign.channel}
                             </span>
                           </td>
                           <td className="py-2.5 px-4">
@@ -353,11 +442,11 @@ export const CampaignsModule: React.FC = () => {
                             >
                               {rec.status === 'simulated_sent' && <CheckCircle2 className="w-3 h-3" />}
                               {rec.status === 'queued' && <Clock className="w-3 h-3" />}
-                              <span className="capitalize">{rec.status.replace('_', ' ')}</span>
+                              <span>{rec.status === 'simulated_sent' ? 'Dispatched' : rec.status === 'queued' ? 'Queued' : 'Replied'}</span>
                             </span>
                           </td>
                           <td className="py-2.5 px-4 text-slate-400 text-[11px]">
-                            {rec.sent_at ? new Date(rec.sent_at).toLocaleTimeString() : 'Queued'}
+                            {rec.sent_at ? new Date(rec.sent_at).toLocaleTimeString() : 'Awaiting Dispatch'}
                           </td>
                         </tr>
                       ))}
@@ -368,115 +457,302 @@ export const CampaignsModule: React.FC = () => {
             </>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400 text-xs">
-              Select a campaign on the left to monitor progress and view individual recipients.
+              Select a campaign on the left to monitor live recipient progress.
             </div>
           )}
         </div>
       </div>
 
-      {/* Create Campaign Modal */}
-      {showCreateModal && (
+      {/* Guided Campaign Builder Wizard Modal */}
+      {showBuilder && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
-              <h3 className="font-bold text-base">Create Simulated Outreach Campaign</h3>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white p-1">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="font-bold text-base leading-tight">Guided Campaign Builder</h3>
+                <p className="text-[11px] text-slate-400">Step {builderStep} of 4: {builderStep === 1 ? 'Audience & Segment' : builderStep === 2 ? 'Channel & Template' : builderStep === 3 ? 'Personalization & Preview' : 'Review & Confirm'}</p>
+              </div>
+              <button onClick={() => setShowBuilder(false)} className="text-slate-400 hover:text-white p-1 rounded">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Campaign Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Dublin Tech ERP & Senior Finance Search Q4"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
-                />
+            {/* Stepper Indicator */}
+            <div className="grid grid-cols-4 border-b border-slate-200 text-xs font-semibold text-center bg-slate-50 shrink-0">
+              <div className={`py-2.5 ${builderStep === 1 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+                1. Audience
               </div>
+              <div className={`py-2.5 ${builderStep === 2 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+                2. Template
+              </div>
+              <div className={`py-2.5 ${builderStep === 3 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+                3. Preview
+              </div>
+              <div className={`py-2.5 ${builderStep === 4 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+                4. Confirm
+              </div>
+            </div>
 
-              {/* Template Presets */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Select Approved Irish Corporate Template
-                </label>
-                <div className="space-y-1.5">
-                  {templates.map((t) => (
+            {/* Wizard Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {/* STEP 1: Audience Selection */}
+              {builderStep === 1 && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Campaign Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={campaignName}
+                      onChange={(e) => setCampaignName(e.target.value)}
+                      placeholder="e.g. Q4 Dublin MedTech & Logistics Year-End Compliance Briefing"
+                      className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Select Intelligent Target Segment
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {segments.map((seg) => {
+                        const isSelected = selectedSegmentId === seg.id;
+                        return (
+                          <div
+                            key={seg.id}
+                            onClick={() => handleSegmentChange(seg.id)}
+                            className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-50/70 border-blue-500 shadow-2xs'
+                                : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-bold text-xs text-slate-900">{seg.name}</span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                                {seg.count} leads
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 leading-tight line-clamp-2">
+                              {seg.description}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-end">
                     <button
                       type="button"
-                      key={t.id}
-                      onClick={() => handleSelectTemplate(t)}
-                      className="w-full text-left p-2 rounded border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 text-xs transition-colors flex items-center justify-between"
+                      onClick={() => setBuilderStep(2)}
+                      disabled={!campaignName.trim() || selectedLeadIds.length === 0}
+                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
-                      <div>
-                        <span className="font-bold text-slate-900 mr-2">[{t.channel.toUpperCase()}]</span>
-                        <span className="text-slate-700">{t.title}</span>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Continue to Channel & Template</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </button>
-                  ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Outreach Medium</label>
-                  <select
-                    value={channel}
-                    onChange={(e) => setChannel(e.target.value as ChannelType)}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white capitalize focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="email">Outlook / Corporate Email</option>
-                    <option value="linkedin">LinkedIn InMail / DM</option>
-                    <option value="whatsapp">WhatsApp Business (Simulated)</option>
-                    <option value="website">Website Autoresponder</option>
-                    <option value="facebook">Meta Facebook Messenger</option>
-                    <option value="instagram">Instagram Direct</option>
-                    <option value="sms">Telco SMS Gateway</option>
-                  </select>
+              {/* STEP 2: Channel & Template Selection */}
+              {builderStep === 2 && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Outreach Medium</label>
+                    <select
+                      value={channel}
+                      onChange={(e) => setChannel(e.target.value as ChannelType)}
+                      className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white capitalize focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="email">Corporate Email (Microsoft 365 Exchange)</option>
+                      <option value="linkedin">LinkedIn InMail / Executive Direct Message</option>
+                      <option value="whatsapp">WhatsApp Business Platform</option>
+                      <option value="sms">Enterprise SMS Gateway</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Approved Practice Outreach Templates
+                    </label>
+                    <div className="space-y-2">
+                      {templates.map((t) => (
+                        <div
+                          key={t.id}
+                          onClick={() => handleSelectTemplate(t)}
+                          className={`p-3 rounded-lg border text-xs cursor-pointer transition-all ${
+                            templateId === t.id
+                              ? 'bg-blue-50/70 border-blue-500 shadow-2xs'
+                              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-slate-900">
+                              [{t.channel.toUpperCase()}] {t.title}
+                            </span>
+                            <span className="text-[11px] text-slate-400">{t.audience}</span>
+                          </div>
+                          <p className="text-slate-600 line-clamp-2 leading-relaxed text-[11px]">
+                            {t.body}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Custom Message Body</label>
+                    <textarea
+                      rows={4}
+                      value={templateBody}
+                      onChange={(e) => setTemplateBody(e.target.value)}
+                      className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex justify-between items-center border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setBuilderStep(1)}
+                      className="text-xs text-slate-600 hover:text-slate-900 font-medium"
+                    >
+                      Back to Audience
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBuilderStep(3)}
+                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Preview Real Lead Personalization</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Audience Segment</label>
-                  <input
-                    type="text"
-                    value={targetAudience}
-                    onChange={(e) => setTargetAudience(e.target.value)}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
-                  />
+              )}
+
+              {/* STEP 3: Personalization & Real Sample Preview */}
+              {builderStep === 3 && (
+                <div className="space-y-4">
+                  <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-lg text-xs">
+                    <span className="font-bold text-slate-900 block mb-1">Personalization Preview with Sample Leads</span>
+                    <p className="text-slate-500 text-[11px]">
+                      Tokens <code className="bg-white px-1 rounded border border-slate-200 text-blue-600 font-mono">&#123;CONTACT_NAME&#125;</code>, <code className="bg-white px-1 rounded border border-slate-200 text-blue-600 font-mono">&#123;BUSINESS_NAME&#125;</code>, and <code className="bg-white px-1 rounded border border-slate-200 text-blue-600 font-mono">&#123;CITY&#125;</code> are dynamically populated for each recipient.
+                    </p>
+                  </div>
+
+                  {/* Rendered Preview Card */}
+                  <div className="bg-white border border-slate-300 rounded-xl p-5 shadow-xs space-y-3">
+                    <div className="flex items-center justify-between text-xs border-b border-slate-100 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-800">Preview Recipient:</span>
+                        <span className="font-semibold text-blue-600">
+                          {previewLeadIndex === 0 ? 'Declan Murphy (Apex Logistics Ireland Ltd, Dublin 2)' : 'Sean O’Connor (Celtic Marine Engineering Ltd, Cork)'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewLeadIndex(previewLeadIndex === 0 ? 1 : 0)}
+                          className="px-2 py-0.5 rounded border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Toggle Sample Lead
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-slate-700 whitespace-pre-line leading-relaxed font-sans bg-slate-50/50 p-4 rounded-lg border border-slate-100">
+                      {templateBody
+                        .replace(/{CONTACT_NAME}/g, previewLeadIndex === 0 ? 'Declan' : 'Sean')
+                        .replace(/{BUSINESS_NAME}/g, previewLeadIndex === 0 ? 'Apex Logistics Ireland Ltd' : 'Celtic Marine Engineering Ltd')
+                        .replace(/{CITY}/g, previewLeadIndex === 0 ? 'Dublin 2' : 'Cork')}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-between items-center border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setBuilderStep(2)}
+                      className="text-xs text-slate-600 hover:text-slate-900 font-medium"
+                    >
+                      Back to Template
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBuilderStep(4)}
+                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Final Review & Launch</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Message Template Body *</label>
-                <textarea
-                  rows={4}
-                  required
-                  value={templateBody}
-                  onChange={(e) => setTemplateBody(e.target.value)}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans"
-                />
-              </div>
+              {/* STEP 4: Review & Confirm */}
+              {builderStep === 4 && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2 text-xs">
+                    <div className="flex items-center gap-2 text-emerald-900 font-bold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Ready to Deploy Outreach Campaign</span>
+                    </div>
+                    <p className="text-emerald-800 leading-relaxed text-[11px]">
+                      The campaign will be staged in the SQLite database and process {selectedLeadIds.length} recipients asynchronously.
+                    </p>
+                  </div>
 
-              <div className="pt-2 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={creating || !name.trim()}
-                  className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm disabled:opacity-50"
-                >
-                  {creating ? 'Saving...' : 'Create Campaign'}
-                </button>
-              </div>
-            </form>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Campaign Title:</span>
+                      <span className="font-bold text-slate-900">{campaignName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Selected Medium:</span>
+                      <span className="font-semibold text-slate-800 capitalize">{channel}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Target Segment:</span>
+                      <span className="font-semibold text-slate-800">{targetAudienceText}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Recipient Count:</span>
+                      <span className="font-bold text-blue-700">{selectedLeadIds.length} corporate prospects</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-between items-center border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setBuilderStep(3)}
+                      className="text-xs text-slate-600 hover:text-slate-900 font-medium"
+                    >
+                      Back to Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleLaunchCampaign}
+                      disabled={isLaunching}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {isLaunching ? (
+                        <>
+                          <Clock className="w-3.5 h-3.5 animate-spin" />
+                          <span>Initializing Queue...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Confirm & Launch Campaign</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

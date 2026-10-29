@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import {
-  Sparkles,
-  ShieldCheck,
   RefreshCw,
-  PlusCircle,
-  HelpCircle,
-  AlertCircle
+  Building2,
+  AlertCircle,
+  CheckCircle2,
+  User,
+  FlaskConical
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -13,7 +13,7 @@ interface HeaderProps {
   title: string;
   subtitle: string;
   onRefresh: () => void;
-  onSimulateInboundClick: () => void;
+  onOpenTestTools?: () => void;
   aiStatus: {
     status: string;
     model: string;
@@ -25,8 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   title,
   subtitle,
   onRefresh,
-  onSimulateInboundClick,
-  aiStatus,
+  onOpenTestTools,
 }) => {
   const [resetting, setResetting] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
@@ -45,55 +44,60 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-sm">
+    <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-2xs">
       {/* Title & Context */}
       <div>
-        <h1 className="text-lg font-bold text-slate-900 tracking-tight">{title}</h1>
+        <h1 className="text-base font-bold text-slate-900 tracking-tight">{title}</h1>
         <p className="text-xs text-slate-500 font-medium">{subtitle}</p>
       </div>
 
-      {/* Right Controls */}
+      {/* Right Controls - Production Oriented */}
       <div className="flex items-center gap-3">
-        {/* Gemini AI Status Pill */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-medium text-blue-700 shadow-xs">
-          <Sparkles className="w-3.5 h-3.5 text-blue-600 animate-spin-slow" />
-          <span>AI Engine:</span>
-          <span className="font-semibold text-blue-900">
-            {aiStatus.status === 'operational' ? aiStatus.model : 'Unavailable'}
-          </span>
-          <span
-            className={`w-2 h-2 rounded-full ${
-              aiStatus.status === 'operational' ? 'bg-emerald-500' : 'bg-rose-500'
-            }`}
-          />
+        {/* Workspace Location Indicator */}
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700">
+          <Building2 className="w-3.5 h-3.5 text-blue-600" />
+          <span className="font-semibold text-slate-800">Ireland Practice</span>
+          <span className="text-slate-400">•</span>
+          <span className="text-slate-500">Dublin HQ</span>
         </div>
 
-        {/* Simulation Guardrail Pill */}
-        <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-medium text-amber-800">
-          <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-          <span>Simulated Send</span>
+        {/* Operational Status */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-800">
+          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          <span className="font-medium text-[11px]">System Online</span>
         </div>
 
-        {/* Walkthrough Action: Simulate Inbound */}
+        {/* Refresh Data */}
         <button
-          onClick={onSimulateInboundClick}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-all cursor-pointer"
-          title="Controllable trigger for fictional prospect responses"
+          onClick={onRefresh}
+          className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+          title="Refresh live data from database"
         >
-          <PlusCircle className="w-3.5 h-3.5" />
-          <span>Simulate Incoming Lead</span>
+          <RefreshCw className="w-4 h-4" />
         </button>
 
-        {/* Reset Demo Data Button */}
-        <button
-          onClick={() => setShowConfirmReset(true)}
-          disabled={resetting}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium border border-slate-300 transition-colors cursor-pointer"
-          title="Reset SQLite database with pristine Ireland demo data"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${resetting ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline">Reset Demo</span>
-        </button>
+        {/* Internal Testing Drawer / Sandbox Access (discreet) */}
+        {onOpenTestTools && (
+          <button
+            onClick={onOpenTestTools}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-500 hover:text-blue-700 hover:bg-blue-50 border border-slate-200 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+            title="Internal Scenario Testing & Simulation Tools"
+          >
+            <FlaskConical className="w-3.5 h-3.5 text-slate-400" />
+            <span className="hidden sm:inline text-[11px]">Test Tools</span>
+          </button>
+        )}
+
+        {/* User Account / Profile */}
+        <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+          <div className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-semibold">
+            DO
+          </div>
+          <div className="hidden md:block text-left">
+            <p className="text-xs font-semibold text-slate-800 leading-tight">Declan O'Sullivan</p>
+            <p className="text-[10px] text-slate-400 leading-tight">Client Services Lead</p>
+          </div>
+        </div>
       </div>
 
       {/* Reset Confirmation Modal */}
@@ -105,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
               <h3 className="text-base font-bold text-slate-900">Reset Demo Database?</h3>
             </div>
             <p className="text-sm text-slate-600 mb-5 leading-relaxed">
-              This will re-initialize the persistent SQLite database with clean Ireland corporate leads, sample campaigns, active conversations across all 7 channels, and approved company knowledge.
+              This will re-initialize the persistent database with clean Ireland corporate leads, sample campaigns, active conversations across all 7 channels, and approved company knowledge.
             </p>
             <div className="flex justify-end gap-3">
               <button

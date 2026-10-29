@@ -49,10 +49,21 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const [campaignPrefill, setCampaignPrefill] = useState<{
+    segmentName?: string;
+    leadIds?: string[];
+    channel?: string;
+  } | null>(null);
+
   const handleSimulateSuccess = (convId: string) => {
     setTargetConvId(convId);
     setActiveModule('inbox');
     refreshCounts();
+  };
+
+  const handleLaunchCampaignFromSegment = (segmentName: string, leadIds: string[], channel?: string) => {
+    setCampaignPrefill({ segmentName, leadIds, channel });
+    setActiveModule('campaigns');
   };
 
   const getModuleTitle = () => {
@@ -65,12 +76,12 @@ export const App: React.FC = () => {
       case 'leads':
         return {
           title: 'Leads Management & Import',
-          subtitle: 'Directory of Irish corporate prospects with CSV/XLSX import & deduplication',
+          subtitle: 'Directory of Irish corporate prospects with guided CSV/XLSX import & intelligent segmentation',
         };
       case 'campaigns':
         return {
           title: 'Campaign Orchestration',
-          subtitle: 'Simulated multi-channel outreach dispatch with real-time SQLite tracking',
+          subtitle: 'Multi-channel outreach execution and live recipient status tracking',
         };
       case 'inbox':
         return {
@@ -80,12 +91,12 @@ export const App: React.FC = () => {
       case 'qualified':
         return {
           title: 'Qualified Leads & CRM Handoffs',
-          subtitle: 'High-intent prospects staged for Bitrix24 CRM REST handoff',
+          subtitle: 'High-intent Irish corporate prospects staged for Bitrix24 CRM pipeline handoff',
         };
       case 'analytics':
         return {
           title: 'Conversion & Channel Analytics',
-          subtitle: 'Calculated metrics and conversion rates from persisted database records',
+          subtitle: 'Calculated metrics and conversion rates derived from persistent database records',
         };
       case 'knowledge':
         return {
@@ -94,13 +105,13 @@ export const App: React.FC = () => {
         };
       case 'integrations':
         return {
-          title: 'Channel Adapters & Integrations',
-          subtitle: 'Safe simulated adapters for all 7 channels + Bitrix24 connector',
+          title: 'Channel Adapters & CRM Gateway',
+          subtitle: 'Enterprise communication adapters across 7 channels and Bitrix24 REST integration',
         };
       case 'settings':
         return {
-          title: 'Application Settings & Diagnostics',
-          subtitle: 'Workspace configuration, AI provider health, and SQLite storage verification',
+          title: 'System Settings & Operational Diagnostics',
+          subtitle: 'Workspace configuration, AI provider diagnostics, and persistent storage management',
         };
     }
   };
@@ -123,7 +134,7 @@ export const App: React.FC = () => {
           title={title}
           subtitle={subtitle}
           onRefresh={refreshCounts}
-          onSimulateInboundClick={() => setShowSimulateModal(true)}
+          onOpenTestTools={() => setShowSimulateModal(true)}
           aiStatus={aiStatus}
         />
 
@@ -132,18 +143,24 @@ export const App: React.FC = () => {
           {activeModule === 'overview' && (
             <OverviewModule
               onNavigate={(mod) => setActiveModule(mod)}
-              onSimulateInbound={() => setShowSimulateModal(true)}
             />
           )}
 
-          {activeModule === 'leads' && <LeadsModule />}
+          {activeModule === 'leads' && (
+            <LeadsModule onLaunchCampaignWithSegment={handleLaunchCampaignFromSegment} />
+          )}
 
-          {activeModule === 'campaigns' && <CampaignsModule />}
+          {activeModule === 'campaigns' && (
+            <CampaignsModule
+              initialSegmentName={campaignPrefill?.segmentName}
+              initialLeadIds={campaignPrefill?.leadIds}
+              initialChannel={campaignPrefill?.channel}
+            />
+          )}
 
           {activeModule === 'inbox' && (
             <InboxModule
               initialConversationId={targetConvId}
-              onSimulateInbound={() => setShowSimulateModal(true)}
               onNavigateToQualified={() => setActiveModule('qualified')}
             />
           )}
@@ -156,11 +173,16 @@ export const App: React.FC = () => {
 
           {activeModule === 'integrations' && <IntegrationsModule />}
 
-          {activeModule === 'settings' && <SettingsModule onReset={refreshCounts} />}
+          {activeModule === 'settings' && (
+            <SettingsModule
+              onReset={refreshCounts}
+              onOpenTestSimulator={() => setShowSimulateModal(true)}
+            />
+          )}
         </main>
       </div>
 
-      {/* Global Inbound Simulation Trigger Modal */}
+      {/* Internal Inbound Scenario Simulator */}
       <SimulateInboundModal
         isOpen={showSimulateModal}
         onClose={() => setShowSimulateModal(false)}

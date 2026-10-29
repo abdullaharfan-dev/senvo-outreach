@@ -35,6 +35,100 @@ router.get('/leads', async (req, res) => {
   }
 });
 
+router.get('/leads/segments', async (req, res) => {
+  try {
+    const segments = await leadService.getSegments();
+    res.json(segments);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Step 1 of guided import: Parse uploaded file into rows and detected headers
+router.post('/leads/parse-file', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    let records = [];
+    let headers = [];
+    const filename = req.file.originalname;
+    const lowerName = filename.toLowerCase();
+
+    if (lowerName.endsWith('.csv')) {
+      const content = req.file.buffer.toString('utf8');
+      records = csvParse(content, { columns: true, skip_empty_lines: true, trim: true });
+      if (records.length > 0) {
+        headers = Object.keys(records[0]);
+      }
+    } else if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+      const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+      const firstSheet = workbook.SheetNames[0];
+      records = xlsx.utils.sheet_to_json(workbook.Sheets[firstSheet]);
+      if (records.length > 0) {
+        headers = Object.keys(records[0]);
+      }
+    } else {
+      return res.status(400).json({ error: 'Only CSV and Excel (.xlsx) files are supported' });
+    }
+
+    // Suggested column mapping based on detected header names
+    const suggestedMap = {};
+    for (const h of headers) {
+      const lh = h.toLowerCase().trim();
+      if (lh.includes('company') || lh.includes('business')) suggestedMap.company_name = h;
+      else if (lh.includes('contact') || lh.includes('person') || lh.includes('name')) suggestedMap.contact_name = h;
+      else if (lh.includes('email') || lh.includes('mail')) suggestedMap.email = h;
+      else if (lh.includes('phone') || lh.includes('mobile') || lh.includes('whatsapp') || lh.includes('tel')) suggestedMap.phone = h;
+      else if (lh.includes('industry') || lh.includes('sector')) suggestedMap.industry = h;
+      else if (lh.includes('city') || lh.includes('location') || lh.includes('address')) suggestedMap.city = h;
+      else if (lh.includes('priority')) suggestedMap.priority = h;
+    }
+
+    res.json({
+      filename,
+      headers,
+      suggestedMap,
+      rowCount: records.length,
+      sampleRows: records.slice(0, 5),
+      rawRecords: records
+    });
+  } catch (err) {
+    res.status(500).json({ error: `File parsing failed: ${err.message}` });
+  }
+});
+
+// Step 2 & 3 of guided import: Map, validate, deduplicate, and segment records
+router.post('/leads/validate-import', async (req, res) => {
+  try {
+    const { records, columnMap } = req.body;
+    if (!records || !Array.isArray(records)) {
+      return res.status(400).json({ error: 'Records array required' });
+    }
+
+    const validationResult = await leadService.validateImportRecords(records, columnMap || {});
+    res.json(validationResult);
+  } catch (err) {
+    res.status(500).json({ error: `Validation failed: ${err.message}` });
+  }
+});
+
+// Step 4 of guided import: Commit approved records into SQLite
+router.post('/leads/commit-import', async (req, res) => {
+  try {
+    const { approvedRecords, sourceName } = req.body;
+    if (!approvedRecords || !Array.isArray(approvedRecords)) {
+      return res.status(400).json({ error: 'Approved records array required' });
+    }
+
+    const result = await leadService.commitImportBatch(approvedRecords, sourceName || 'Spreadsheet Import');
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: `Batch commit failed: ${err.message}` });
+  }
+});
+
 router.post('/leads', async (req, res) => {
   try {
     const lead = await leadService.createLead(req.body);

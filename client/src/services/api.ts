@@ -1,6 +1,9 @@
 import type {
   OverviewMetrics,
   Lead,
+  LeadSegment,
+  ValidationResult,
+  ParseFileResult,
   Campaign,
   Conversation,
   QualifiedLead,
@@ -27,6 +30,52 @@ export const api = {
     return res.json() as Promise<{ leads: Lead[]; total: number; page: number; limit: number }>;
   },
 
+  getSegments: async (): Promise<LeadSegment[]> => {
+    const res = await fetch(`${API_BASE}/leads/segments`);
+    if (!res.ok) throw new Error('Failed to fetch segments');
+    return res.json();
+  },
+
+  parseLeadFile: async (file: File): Promise<ParseFileResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/leads/parse-file`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to parse file');
+    }
+    return res.json();
+  },
+
+  validateImport: async (records: any[], columnMap: Record<string, string>): Promise<ValidationResult> => {
+    const res = await fetch(`${API_BASE}/leads/validate-import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records, columnMap }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to validate records');
+    }
+    return res.json();
+  },
+
+  commitImport: async (approvedRecords: any[], sourceName?: string): Promise<{ committed: number; createdIds: string[] }> => {
+    const res = await fetch(`${API_BASE}/leads/commit-import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approvedRecords, sourceName }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to commit batch');
+    }
+    return res.json();
+  },
+
   createLead: async (data: Partial<Lead>): Promise<Lead> => {
     const res = await fetch(`${API_BASE}/leads`, {
       method: 'POST',
@@ -45,23 +94,6 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to update lead');
     return res.json();
-  },
-
-  importLeads: async (file: File, columnMap?: Record<string, string>) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (columnMap) {
-      formData.append('columnMap', JSON.stringify(columnMap));
-    }
-    const res = await fetch(`${API_BASE}/leads/import`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to import leads');
-    }
-    return res.json() as Promise<{ imported: number; duplicates: number; skipped: number }>;
   },
 
   // Campaigns
