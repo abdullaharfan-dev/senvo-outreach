@@ -12,9 +12,19 @@ import KnowledgeModule from './components/KnowledgeModule';
 import IntegrationsModule from './components/IntegrationsModule';
 import SettingsModule from './components/SettingsModule';
 import SimulateInboundModal from './components/SimulateInboundModal';
+import LoginScreen from './components/LoginScreen';
 import { api } from './services/api';
 
 export const App: React.FC = () => {
+  const [authUser, setAuthUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('senvo_demo_auth');
+      return saved ? JSON.parse(saved).user : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [activeModule, setActiveModule] = useState<ModuleType>('overview');
   const [showSimulateModal, setShowSimulateModal] = useState<boolean>(false);
   const [targetConvId, setTargetConvId] = useState<string | null>(null);
@@ -29,6 +39,7 @@ export const App: React.FC = () => {
   const [qualifiedCount, setQualifiedCount] = useState<number>(0);
 
   const refreshCounts = async () => {
+    if (!authUser) return;
     try {
       const overview = await api.getOverview();
       setInboxUnreadCount(overview.summary.inbound_replies);
@@ -44,10 +55,17 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
-    refreshCounts();
-    const interval = setInterval(refreshCounts, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    if (authUser) {
+      refreshCounts();
+      const interval = setInterval(refreshCounts, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [authUser]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('senvo_demo_auth');
+    setAuthUser(null);
+  };
 
   const [campaignPrefill, setCampaignPrefill] = useState<{
     segmentName?: string;
@@ -118,6 +136,10 @@ export const App: React.FC = () => {
 
   const { title, subtitle } = getModuleTitle();
 
+  if (!authUser) {
+    return <LoginScreen onLoginSuccess={(u) => { setAuthUser(u); refreshCounts(); }} />;
+  }
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans">
       {/* Persistent Dark-Navy Sidebar */}
@@ -135,6 +157,7 @@ export const App: React.FC = () => {
           subtitle={subtitle}
           onRefresh={refreshCounts}
           onOpenTestTools={() => setShowSimulateModal(true)}
+          onLogout={handleLogout}
           aiStatus={aiStatus}
         />
 

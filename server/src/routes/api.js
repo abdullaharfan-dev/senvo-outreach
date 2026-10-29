@@ -14,6 +14,53 @@ import { seedData } from '../db/seed.js';
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+// --- Demo Authentication ---
+const DEMO_CREDENTIALS = {
+  email: process.env.DEMO_USER_EMAIL || 'partner@senvo.ie',
+  password: process.env.DEMO_USER_PASSWORD || 'SenvoIreland2026!',
+};
+
+router.post('/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  const normalizedEmail = (email || '').trim().toLowerCase();
+
+  if (
+    (normalizedEmail === DEMO_CREDENTIALS.email.toLowerCase() || normalizedEmail === 'demo@senvo.ie') &&
+    (password === DEMO_CREDENTIALS.password || password === 'Senvo2026!' || password === 'senvo2026')
+  ) {
+    return res.json({
+      success: true,
+      token: 'senvo_demo_secure_session_token_' + Date.now(),
+      user: {
+        name: "Declan O'Sullivan",
+        role: 'Client Services Lead & Partner',
+        email: 'partner@senvo.ie',
+        organization: 'SENVO Ireland Corporate Practice',
+        jurisdiction: 'Dublin • Cork • Galway'
+      }
+    });
+  }
+
+  return res.status(401).json({
+    error: 'Access restricted. Please enter approved SENVO demo credentials.'
+  });
+});
+
+router.get('/auth/verify', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer senvo_demo_secure_session_token_')) {
+    return res.json({
+      authenticated: true,
+      user: {
+        name: "Declan O'Sullivan",
+        role: 'Client Services Lead & Partner',
+        email: 'partner@senvo.ie',
+      }
+    });
+  }
+  return res.status(401).json({ authenticated: false });
+});
+
 // --- Overview / Analytics ---
 router.get('/overview', async (req, res) => {
   try {

@@ -5,7 +5,8 @@ import {
   AlertCircle,
   CheckCircle2,
   User,
-  FlaskConical
+  FlaskConical,
+  LogOut
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -14,6 +15,7 @@ interface HeaderProps {
   subtitle: string;
   onRefresh: () => void;
   onOpenTestTools?: () => void;
+  onLogout?: () => void;
   aiStatus: {
     status: string;
     model: string;
@@ -26,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle,
   onRefresh,
   onOpenTestTools,
+  onLogout,
 }) => {
   const [resetting, setResetting] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
@@ -97,6 +100,15 @@ export const Header: React.FC<HeaderProps> = ({
             <p className="text-xs font-semibold text-slate-800 leading-tight">Declan O'Sullivan</p>
             <p className="text-[10px] text-slate-400 leading-tight">Client Services Lead</p>
           </div>
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer ml-1"
+              title="Sign Out of Demo Workspace"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
