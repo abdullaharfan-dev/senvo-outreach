@@ -1,0 +1,199 @@
+import type {
+  OverviewMetrics,
+  Lead,
+  Campaign,
+  Conversation,
+  QualifiedLead,
+  KnowledgeItem,
+  IntegrationConfig,
+  ChannelType
+} from '../types';
+
+const API_BASE = '/api';
+
+export const api = {
+  // Overview
+  getOverview: async (): Promise<OverviewMetrics> => {
+    const res = await fetch(`${API_BASE}/overview`);
+    if (!res.ok) throw new Error('Failed to fetch overview metrics');
+    return res.json();
+  },
+
+  // Leads
+  getLeads: async (params?: { search?: string; industry?: string; priority?: string; status?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams(params as any).toString();
+    const res = await fetch(`${API_BASE}/leads?${query}`);
+    if (!res.ok) throw new Error('Failed to fetch leads');
+    return res.json() as Promise<{ leads: Lead[]; total: number; page: number; limit: number }>;
+  },
+
+  createLead: async (data: Partial<Lead>): Promise<Lead> => {
+    const res = await fetch(`${API_BASE}/leads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to create lead');
+    return res.json();
+  },
+
+  updateLead: async (id: string, data: Partial<Lead>): Promise<Lead> => {
+    const res = await fetch(`${API_BASE}/leads/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to update lead');
+    return res.json();
+  },
+
+  importLeads: async (file: File, columnMap?: Record<string, string>) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (columnMap) {
+      formData.append('columnMap', JSON.stringify(columnMap));
+    }
+    const res = await fetch(`${API_BASE}/leads/import`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to import leads');
+    }
+    return res.json() as Promise<{ imported: number; duplicates: number; skipped: number }>;
+  },
+
+  // Campaigns
+  getCampaigns: async (): Promise<Campaign[]> => {
+    const res = await fetch(`${API_BASE}/campaigns`);
+    if (!res.ok) throw new Error('Failed to fetch campaigns');
+    return res.json();
+  },
+
+  getCampaignById: async (id: string): Promise<Campaign> => {
+    const res = await fetch(`${API_BASE}/campaigns/${id}`);
+    if (!res.ok) throw new Error('Failed to fetch campaign');
+    return res.json();
+  },
+
+  createCampaign: async (data: {
+    name: string;
+    channel: ChannelType;
+    template_id?: string;
+    template_body: string;
+    target_audience?: string;
+    lead_ids?: string[];
+  }): Promise<Campaign> => {
+    const res = await fetch(`${API_BASE}/campaigns`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to create campaign');
+    return res.json();
+  },
+
+  startCampaign: async (id: string) => {
+    const res = await fetch(`${API_BASE}/campaigns/${id}/start`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to start campaign');
+    return res.json();
+  },
+
+  pauseCampaign: async (id: string) => {
+    const res = await fetch(`${API_BASE}/campaigns/${id}/pause`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to pause campaign');
+    return res.json();
+  },
+
+  // Unified Inbox
+  getConversations: async (params?: { channel?: string; status?: string; search?: string }): Promise<Conversation[]> => {
+    const query = new URLSearchParams(params as any).toString();
+    const res = await fetch(`${API_BASE}/inbox/conversations?${query}`);
+    if (!res.ok) throw new Error('Failed to fetch conversations');
+    return res.json();
+  },
+
+  getConversationDetails: async (id: string): Promise<Conversation> => {
+    const res = await fetch(`${API_BASE}/inbox/conversations/${id}`);
+    if (!res.ok) throw new Error('Failed to fetch conversation details');
+    return res.json();
+  },
+
+  sendMessage: async (conversationId: string, data: { content: string; is_ai_generated?: boolean; sender_name?: string }) => {
+    const res = await fetch(`${API_BASE}/inbox/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to send message');
+    return res.json();
+  },
+
+  simulateIncomingReply: async (data: {
+    conversationId?: string;
+    leadId?: string;
+    channel?: string;
+    content: string;
+    senderName?: string;
+  }) => {
+    const res = await fetch(`${API_BASE}/inbox/simulate-incoming`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to simulate incoming message');
+    }
+    return res.json() as Promise<{ conversation: Conversation; ai_result: any }>;
+  },
+
+  // Qualified Leads
+  getQualifiedLeads: async (): Promise<QualifiedLead[]> => {
+    const res = await fetch(`${API_BASE}/qualified-leads`);
+    if (!res.ok) throw new Error('Failed to fetch qualified leads');
+    return res.json();
+  },
+
+  qualifyLead: async (data: {
+    leadId: string;
+    requested_service?: string;
+    qualification_summary: string;
+    assigned_owner?: string;
+    next_action?: string;
+  }) => {
+    const res = await fetch(`${API_BASE}/qualified-leads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to qualify lead');
+    return res.json();
+  },
+
+  // Knowledge & Integrations
+  getKnowledge: async (): Promise<KnowledgeItem[]> => {
+    const res = await fetch(`${API_BASE}/knowledge`);
+    if (!res.ok) throw new Error('Failed to fetch knowledge');
+    return res.json();
+  },
+
+  getIntegrations: async (): Promise<IntegrationConfig[]> => {
+    const res = await fetch(`${API_BASE}/integrations`);
+    if (!res.ok) throw new Error('Failed to fetch integrations');
+    return res.json();
+  },
+
+  getHealth: async () => {
+    const res = await fetch(`${API_BASE}/health`);
+    if (!res.ok) throw new Error('Failed to fetch health check');
+    return res.json();
+  },
+
+  resetDemo: async () => {
+    const res = await fetch(`${API_BASE}/admin/reset-demo`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to reset demo');
+    return res.json();
+  }
+};

@@ -1,0 +1,532 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Inbox,
+  Send,
+  Sparkles,
+  Bot,
+  User,
+  ShieldCheck,
+  Building2,
+  Mail,
+  Linkedin,
+  MessageSquare,
+  Globe,
+  Layers,
+  CheckCircle2,
+  AlertCircle,
+  Award,
+  Clock,
+  ArrowRight
+} from 'lucide-react';
+import { api } from '../services/api';
+import type { Conversation, Message, AiAssessment, ChannelType } from '../types';
+
+interface InboxModuleProps {
+  initialConversationId?: string | null;
+  onSimulateInbound: () => void;
+  onNavigateToQualified: () => void;
+}
+
+export const InboxModule: React.FC<InboxModuleProps> = ({
+  initialConversationId,
+  onSimulateInbound,
+  onNavigateToQualified,
+}) => {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(initialConversationId || null);
+  const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
+  const [channelFilter, setChannelFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [search, setSearch] = useState<string>('');
+  const [replyText, setReplyText] = useState<string>('');
+  const [sending, setSending] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchConversations = async () => {
+    try {
+      const data = await api.getConversations({
+        channel: channelFilter,
+        status: statusFilter,
+        search,
+      });
+      setConversations(data);
+
+      // Default selection if none selected
+      if (!selectedConvId && data.length > 0) {
+        setSelectedConvId(data[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load conversations:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadConversationDetails = async (id: string) => {
+    try {
+      const details = await api.getConversationDetails(id);
+      setSelectedConv(details);
+      // Auto populate draft if an approved assessment exists
+      if (details.assessments && details.assessments.length > 0 && !replyText) {
+        setReplyText(details.assessments[0].suggested_reply);
+      }
+    } catch (err) {
+      console.error('Failed to load conversation details:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchConversations();
+    const interval = setInterval(fetchConversations, 3000);
+    return () => clearInterval(interval);
+  }, [channelFilter, statusFilter, search]);
+
+  useEffect(() => {
+    if (selectedConvId) {
+      loadConversationDetails(selectedConvId);
+    }
+  }, [selectedConvId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [selectedConv?.messages]);
+
+  const handleSendReply = async (isAi: boolean = false) => {
+    if (!selectedConvId || !replyText.trim()) return;
+
+    try {
+      setSending(true);
+      const updated = await api.sendMessage(selectedConvId, {
+        content: replyText,
+        is_ai_generated: isAi,
+        sender_name: isAi ? 'SENVO AI SDR' : 'SENVO Advisory Team',
+      });
+      setSelectedConv(updated);
+      setReplyText('');
+      fetchConversations();
+    } catch (err: any) {
+      alert(`Send failed: ${err.message}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleQualifyLead = async () => {
+    if (!selectedConv) return;
+    const latestAi = selectedConv.assessments?.[0];
+
+    try {
+      await api.qualifyLead({
+        leadId: selectedConv.lead_id,
+        requested_service: latestAi?.requested_service || 'Corporate Services & Accounting',
+        qualification_summary: latestAi?.summary || 'Qualified lead requiring discovery engagement.',
+        assigned_owner: 'Senior Client Partner (Dublin Practice)',
+        next_action: latestAi?.suggested_next_action || 'Schedule discovery consultation call',
+      });
+      alert(`Lead ${selectedConv.company_name} successfully qualified and staged for Bitrix24 CRM handoff!`);
+      onNavigateToQualified();
+    } catch (err: any) {
+      alert(`Qualification failed: ${err.message}`);
+    }
+  };
+
+  const getChannelIcon = (c: ChannelType) => {
+    switch (c) {
+      case 'email':
+        return <Mail className="w-3.5 h-3.5 text-blue-600" />;
+      case 'linkedin':
+        return <Linkedin className="w-3.5 h-3.5 text-sky-600" />;
+      case 'whatsapp':
+        return <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />;
+      case 'website':
+        return <Globe className="w-3.5 h-3.5 text-purple-600" />;
+      case 'facebook':
+        return <Layers className="w-3.5 h-3.5 text-blue-500" />;
+      case 'instagram':
+        return <Layers className="w-3.5 h-3.5 text-pink-600" />;
+      case 'sms':
+        return <MessageSquare className="w-3.5 h-3.5 text-amber-600" />;
+      default:
+        return <MessageSquare className="w-3.5 h-3.5 text-slate-500" />;
+    }
+  };
+
+  const latestAssessment = selectedConv?.assessments?.[0];
+
+  return (
+    <div className="h-[calc(100vh-4rem)] flex flex-col overflow-hidden bg-slate-50">
+      {/* Top Channel Bar */}
+      <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-medium">
+          {[
+            { id: 'all', label: 'All Channels' },
+            { id: 'email', label: 'Email / Outlook' },
+            { id: 'linkedin', label: 'LinkedIn' },
+            { id: 'whatsapp', label: 'WhatsApp' },
+            { id: 'website', label: 'Website Inquiries' },
+            { id: 'facebook', label: 'Facebook' },
+            { id: 'instagram', label: 'Instagram' },
+            { id: 'sms', label: 'SMS' },
+          ].map((ch) => (
+            <button
+              key={ch.id}
+              onClick={() => setChannelFilter(ch.id)}
+              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                channelFilter === ch.id
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {ch.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={onSimulateInbound}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Simulate Reply Here</span>
+        </button>
+      </div>
+
+      {/* Main 3-Column Inbox Layout */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left: Conversation List */}
+        <div className="w-80 md:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0">
+          <div className="p-3 border-b border-slate-200 bg-slate-50/50">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter by company, contact..."
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+            {loading ? (
+              <div className="p-8 text-center text-slate-400 text-xs">Loading conversations...</div>
+            ) : conversations.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs">No conversations found.</div>
+            ) : (
+              conversations.map((c) => {
+                const isSelected = selectedConvId === c.id;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setSelectedConvId(c.id);
+                      setReplyText('');
+                    }}
+                    className={`p-3.5 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-50/70 border-l-4 border-l-blue-600'
+                        : 'hover:bg-slate-50/70'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5 truncate">
+                        {getChannelIcon(c.channel)}
+                        <span className="font-bold text-slate-900 text-xs truncate">
+                          {c.company_name}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                        {new Date(c.last_message_at).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-600 truncate mb-1.5 font-medium">
+                      {c.contact_name || 'Managing Director'}
+                    </div>
+
+                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                      {c.last_message || '(No messages)'}
+                    </p>
+
+                    {c.latest_intent && (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 truncate capitalize">
+                          {c.latest_intent.replace(/_/g, ' ')}
+                        </span>
+                        {c.status === 'review_needed' && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                            Review
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Center: Message Thread & Composer */}
+        <div className="flex-1 flex flex-col bg-slate-50/50 overflow-hidden">
+          {selectedConv ? (
+            <>
+              {/* Thread Header */}
+              <div className="h-14 px-6 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+                    {getChannelIcon(selectedConv.channel)}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-900 text-xs sm:text-sm">
+                        {selectedConv.company_name}
+                      </h3>
+                      <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                        {selectedConv.channel}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      {selectedConv.contact_name} • {selectedConv.city}, Ireland
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-amber-600" />
+                    <span>Simulated Channel Mode</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Message History Bubble Stream */}
+              <div className="flex-1 p-6 overflow-y-auto space-y-4">
+                {selectedConv.messages?.map((msg) => {
+                  const isInbound = msg.direction === 'inbound';
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${isInbound ? 'items-start' : 'items-end'}`}
+                    >
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-1 px-1">
+                        {isInbound ? (
+                          <span className="font-semibold text-slate-700">{msg.sender_name}</span>
+                        ) : (
+                          <span className="font-semibold text-blue-700">
+                            {msg.is_ai_generated ? 'SENVO AI SDR' : 'SENVO Advisory'}
+                          </span>
+                        )}
+                        <span>•</span>
+                        <span>
+                          {new Date(msg.created_at).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                        <span>•</span>
+                        <span className="text-amber-600 font-medium">[Simulated]</span>
+                      </div>
+
+                      <div
+                        className={`max-w-lg p-3.5 rounded-2xl text-xs leading-relaxed font-sans shadow-2xs whitespace-pre-line ${
+                          isInbound
+                            ? 'bg-white border border-slate-200 text-slate-800 rounded-tl-xs'
+                            : msg.is_ai_generated
+                            ? 'bg-blue-600 text-white rounded-tr-xs shadow-blue-500/10'
+                            : 'bg-slate-900 text-white rounded-tr-xs'
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Outbound Reply Composer */}
+              <div className="p-4 bg-white border-t border-slate-200 shrink-0 space-y-2.5">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span className="font-semibold text-slate-700">Reply Composer (Simulated Dispatch)</span>
+                  {latestAssessment && (
+                    <button
+                      onClick={() => setReplyText(latestAssessment.suggested_reply)}
+                      className="text-blue-600 hover:text-blue-800 font-semibold text-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Use Gemini Draft</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <textarea
+                    rows={3}
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Type an outbound response to send via simulated channel..."
+                    className="w-full text-xs border border-slate-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans pr-24"
+                  />
+                  <div className="absolute right-2 bottom-2.5 flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleSendReply(false)}
+                      disabled={sending || !replyText.trim()}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>{sending ? 'Sending...' : 'Send'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
+              Select a conversation to view the thread and AI assessment.
+            </div>
+          )}
+        </div>
+
+        {/* Right: Lead Context & Genuine Gemini AI Intelligence */}
+        <div className="w-80 md:w-96 bg-white border-l border-slate-200 overflow-y-auto p-5 space-y-5 shrink-0">
+          {selectedConv && (
+            <>
+              {/* Prospect Details */}
+              <div className="space-y-3 pb-4 border-b border-slate-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Prospect Profile
+                  </h4>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 uppercase">
+                    {selectedConv.priority} Priority
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Company</span>
+                    <span className="font-semibold text-slate-800">{selectedConv.company_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Primary Decision Maker</span>
+                    <span className="text-slate-700 font-medium">
+                      {selectedConv.contact_name || 'Managing Director'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Industry Sector</span>
+                    <span className="text-slate-700">{selectedConv.industry}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Corporate Office</span>
+                    <span className="text-slate-700">{selectedConv.city}, Ireland</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gemini AI Intelligence Card */}
+              {latestAssessment ? (
+                <div className="space-y-3.5 p-4 rounded-xl bg-gradient-to-br from-blue-50/70 to-indigo-50/50 border border-blue-200 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      <span>Gemini AI Assessment</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      {(latestAssessment.confidence * 100).toFixed(0)}% Confidence
+                    </span>
+                  </div>
+
+                  {/* Intent & Service */}
+                  <div className="space-y-1.5">
+                    <div className="text-[11px]">
+                      <span className="text-slate-500 font-medium">Classified Intent: </span>
+                      <span className="font-bold text-blue-900 capitalize">
+                        {latestAssessment.intent.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <div className="text-[11px]">
+                      <span className="text-slate-500 font-medium">Requested Service: </span>
+                      <span className="font-semibold text-slate-800">
+                        {latestAssessment.requested_service}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Executive Summary */}
+                  <div className="text-xs bg-white/80 p-2.5 rounded-lg border border-blue-100/80 leading-relaxed text-slate-700">
+                    <span className="font-semibold text-slate-900 block mb-0.5 text-[11px]">
+                      Executive Summary:
+                    </span>
+                    {latestAssessment.summary}
+                  </div>
+
+                  {/* Suggested Next Action */}
+                  <div className="text-xs bg-blue-100/60 p-2.5 rounded-lg border border-blue-200/60 leading-relaxed text-blue-950">
+                    <span className="font-bold text-blue-900 block mb-0.5 text-[11px]">
+                      Recommended Sales Action:
+                    </span>
+                    {latestAssessment.suggested_next_action}
+                  </div>
+
+                  {/* Suggested Draft */}
+                  <div className="space-y-1.5">
+                    <span className="font-semibold text-slate-700 text-[11px]">
+                      AI Generated Draft Reply:
+                    </span>
+                    <p className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed font-sans italic">
+                      "{latestAssessment.suggested_reply}"
+                    </p>
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => setReplyText(latestAssessment.suggested_reply)}
+                        className="flex-1 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        Load to Composer
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setReplyText(latestAssessment.suggested_reply);
+                          await handleSendReply(true);
+                        }}
+                        className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                      >
+                        Send Draft (Simulated)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Lead Qualification Handoff CTA */}
+                  <div className="pt-2 border-t border-blue-200/60">
+                    <button
+                      onClick={handleQualifyLead}
+                      className="w-full py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Award className="w-3.5 h-3.5" />
+                      <span>Qualify & Stage Bitrix24 Handoff</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500 space-y-2">
+                  <Bot className="w-6 h-6 text-slate-400 mx-auto" />
+                  <p className="font-medium text-slate-700">No AI Assessment Pending</p>
+                  <p className="text-[11px] text-slate-400">
+                    Trigger an incoming message using the button above to execute live Gemini classification.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default InboxModule;
