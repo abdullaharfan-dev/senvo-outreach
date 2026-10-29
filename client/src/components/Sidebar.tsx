@@ -10,7 +10,8 @@ import {
   Network,
   Settings,
   Building2,
-  Shield
+  Shield,
+  X
 } from 'lucide-react';
 
 export type ModuleType =
@@ -29,6 +30,8 @@ interface SidebarProps {
   setActiveModule: (module: ModuleType) => void;
   inboxUnreadCount?: number;
   qualifiedCount?: number;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -36,6 +39,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveModule,
   inboxUnreadCount = 0,
   qualifiedCount = 0,
+  isMobileOpen = false,
+  onCloseMobile,
 }) => {
   const navItems = [
     { id: 'overview' as ModuleType, label: 'Overview', icon: LayoutDashboard },
@@ -59,22 +64,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'settings' as ModuleType, label: 'Settings', icon: Settings },
   ];
 
-  return (
-    <aside className="w-64 bg-navy-900 text-slate-300 flex flex-col h-screen select-none border-r border-slate-800 shrink-0">
+  const handleItemClick = (id: ModuleType) => {
+    setActiveModule(id);
+    if (onCloseMobile) {
+      onCloseMobile();
+    }
+  };
+
+  const renderContent = (isMobile: boolean = false) => (
+    <div className="flex flex-col h-full select-none">
       {/* Brand Header */}
-      <div className="p-5 flex items-center gap-3 border-b border-slate-800/80">
-        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-xs">
-          S
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-white text-sm tracking-wide">SENVO</span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">
-              Outreach
-            </span>
+      <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-800/80">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-xs">
+            S
           </div>
-          <p className="text-[11px] text-slate-400">Client Response Operations</p>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white text-sm tracking-wide">SENVO</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">
+                Outreach
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">Client Response Operations</p>
+          </div>
         </div>
+
+        {isMobile && onCloseMobile && (
+          <button
+            onClick={onCloseMobile}
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+            aria-label="Close navigation drawer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Target Market Context Pill */}
@@ -94,8 +118,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           return (
             <button
               key={item.id}
-              onClick={() => setActiveModule(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+              onClick={() => handleItemClick(item.id)}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-colors cursor-pointer min-h-[40px] ${
                 isActive
                   ? 'bg-blue-600 text-white font-semibold shadow-xs'
                   : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
@@ -132,7 +156,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
           SENVO Outreach Platform • Enterprise Staging
         </p>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Persistent Sidebar */}
+      <aside className="hidden lg:flex w-64 bg-navy-900 text-slate-300 flex-col h-screen select-none border-r border-slate-800 shrink-0">
+        {renderContent(false)}
+      </aside>
+
+      {/* Mobile Drawer Backdrop & Slide-out Menu */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Dark backdrop overlay */}
+          <div
+            onClick={onCloseMobile}
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            aria-hidden="true"
+          />
+
+          {/* Drawer container */}
+          <div className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-navy-900 text-slate-300 shadow-2xl border-r border-slate-800 z-50 flex flex-col h-full animate-in slide-in-from-left duration-200">
+            {renderContent(true)}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

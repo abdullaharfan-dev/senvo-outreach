@@ -26,6 +26,7 @@ export const App: React.FC = () => {
   });
 
   const [activeModule, setActiveModule] = useState<ModuleType>('overview');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [showSimulateModal, setShowSimulateModal] = useState<boolean>(false);
   const [targetConvId, setTargetConvId] = useState<string | null>(null);
 
@@ -142,12 +143,14 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans">
-      {/* Persistent Dark-Navy Sidebar */}
+      {/* Persistent Dark-Navy Sidebar (Desktop) + Mobile Drawer */}
       <Sidebar
         activeModule={activeModule}
         setActiveModule={setActiveModule}
         inboxUnreadCount={inboxUnreadCount}
         qualifiedCount={qualifiedCount}
+        isMobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
       />
 
       {/* Main Working Canvas */}
@@ -158,11 +161,12 @@ export const App: React.FC = () => {
           onRefresh={refreshCounts}
           onOpenTestTools={() => setShowSimulateModal(true)}
           onLogout={handleLogout}
+          onToggleMobileMenu={() => setMobileMenuOpen(true)}
           aiStatus={aiStatus}
         />
 
         {/* Module Content View */}
-        <main className="flex-1 overflow-y-auto bg-slate-50">
+        <main className={`flex-1 ${activeModule === 'inbox' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'} bg-slate-50`}>
           {activeModule === 'overview' && (
             <OverviewModule
               onNavigate={(mod) => setActiveModule(mod)}

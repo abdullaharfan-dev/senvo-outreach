@@ -224,12 +224,12 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Campaign Dispatch & Audience Orchestration</h2>
-          <p className="text-xs text-slate-500">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Campaign Dispatch & Audience Orchestration</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
             Multi-channel outreach execution • Real-time recipient status tracking in SQLite
           </p>
         </div>
@@ -239,7 +239,7 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
             setShowBuilder(true);
             setBuilderStep(1);
           }}
-          className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+          className="flex items-center justify-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer w-full sm:w-auto"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>New Campaign Builder</span>
@@ -247,10 +247,10 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
       </div>
 
       {/* Main Campaign Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
         {/* Left: Active Campaigns List */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
-          <div className="p-4 bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+          <div className="p-3.5 sm:p-4 bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
             <span>Campaigns ({campaigns.length})</span>
             <span className="text-[11px] font-normal text-slate-400">Click to monitor</span>
           </div>
@@ -271,16 +271,16 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                   <div
                     key={c.id}
                     onClick={() => loadCampaignDetails(c.id)}
-                    className={`p-4 transition-all cursor-pointer ${
+                    className={`p-3.5 sm:p-4 transition-all cursor-pointer ${
                       isSelected ? 'bg-blue-50/70 border-l-4 border-l-blue-600' : 'hover:bg-slate-50/70'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-bold text-slate-900 text-xs truncate max-w-[190px]">
+                    <div className="flex items-center justify-between mb-1.5 gap-2">
+                      <span className="font-bold text-slate-900 text-xs truncate">
                         {c.name}
                       </span>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                        className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
                           c.status === 'running'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : c.status === 'completed'
@@ -318,30 +318,30 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
         </div>
 
         {/* Right: Selected Campaign Execution Monitor */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-5 sm:space-y-6">
           {selectedCampaign ? (
             <>
               {/* Campaign Detail Card */}
-              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-slate-900">{selectedCampaign.name}</h3>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 uppercase">
+              <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-2xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-100 pb-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">{selectedCampaign.name}</h3>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 uppercase">
                         {selectedCampaign.channel}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">
                       Target Audience: <span className="font-semibold text-slate-700">{selectedCampaign.target_audience}</span>
                     </p>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     {selectedCampaign.status === 'running' ? (
                       <button
                         onClick={() => handlePause(selectedCampaign.id)}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold shadow-2xs cursor-pointer"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold shadow-2xs cursor-pointer w-full sm:w-auto justify-center"
                       >
                         <Pause className="w-3.5 h-3.5" />
                         <span>Pause Campaign</span>
@@ -354,7 +354,7 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                     ) : (
                       <button
                         onClick={() => handleStart(selectedCampaign.id)}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs cursor-pointer"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs cursor-pointer w-full sm:w-auto justify-center"
                       >
                         <Play className="w-3.5 h-3.5" />
                         <span>Launch Campaign</span>
@@ -364,36 +364,36 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                 </div>
 
                 {/* KPI Metrics derived strictly from SQLite */}
-                <div className="grid grid-cols-4 gap-3 text-center text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-center text-xs">
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                    <span className="text-slate-400 block text-[11px]">Total Audience</span>
-                    <span className="font-bold text-slate-900 text-base">{selectedCampaign.total_recipients}</span>
+                    <span className="text-slate-400 block text-[10px] sm:text-[11px]">Total Audience</span>
+                    <span className="font-bold text-slate-900 text-sm sm:text-base">{selectedCampaign.total_recipients}</span>
                   </div>
                   <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-100">
-                    <span className="text-blue-600 block text-[11px]">Messages Dispatched</span>
-                    <span className="font-bold text-blue-900 text-base">{selectedCampaign.sent_count}</span>
+                    <span className="text-blue-600 block text-[10px] sm:text-[11px]">Messages Sent</span>
+                    <span className="font-bold text-blue-900 text-sm sm:text-base">{selectedCampaign.sent_count}</span>
                   </div>
                   <div className="bg-amber-50 p-2.5 rounded-lg border border-amber-100">
-                    <span className="text-amber-600 block text-[11px]">Audience Queued</span>
-                    <span className="font-bold text-amber-900 text-base">
+                    <span className="text-amber-600 block text-[10px] sm:text-[11px]">Queued</span>
+                    <span className="font-bold text-amber-900 text-sm sm:text-base">
                       {Math.max(0, selectedCampaign.total_recipients - selectedCampaign.sent_count)}
                     </span>
                   </div>
                   <div className="bg-cyan-50 p-2.5 rounded-lg border border-cyan-100">
-                    <span className="text-cyan-700 block text-[11px]">Client Replies</span>
-                    <span className="font-bold text-cyan-900 text-base">{selectedCampaign.replied_count || 0}</span>
+                    <span className="text-cyan-700 block text-[10px] sm:text-[11px]">Client Replies</span>
+                    <span className="font-bold text-cyan-900 text-sm sm:text-base">{selectedCampaign.replied_count || 0}</span>
                   </div>
                 </div>
 
                 {/* Approved Message Template */}
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-xs">
-                  <div className="font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-3.5 text-xs">
+                  <div className="font-semibold text-slate-700 mb-1 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                     <span>Approved Outreach Copy</span>
                     <span className="text-[10px] text-slate-400 font-normal">
                       Tokens: &#123;CONTACT_NAME&#125;, &#123;BUSINESS_NAME&#125;, &#123;CITY&#125;
                     </span>
                   </div>
-                  <p className="text-slate-600 whitespace-pre-line leading-relaxed font-sans">
+                  <p className="text-slate-600 whitespace-pre-line leading-relaxed font-sans text-xs">
                     {selectedCampaign.template_body}
                   </p>
                 </div>
@@ -401,16 +401,16 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
 
               {/* Recipient-Level Sending Progress Table */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-                <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between text-xs">
+                <div className="p-3.5 sm:p-4 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
                   <div className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-blue-600" />
+                    <Activity className="w-4 h-4 text-blue-600 shrink-0" />
                     <span className="font-bold text-slate-800">Recipient-Level Dispatch Status & Audit Log</span>
                   </div>
                   <span className="text-slate-500 text-[11px]">Updated live from database</span>
                 </div>
 
                 <div className="overflow-x-auto max-h-72">
-                  <table className="w-full text-left border-collapse text-xs">
+                  <table className="w-full min-w-[500px] text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-slate-50/50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
                         <th className="py-2.5 px-4">Company</th>
@@ -456,7 +456,7 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
               </div>
             </>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400 text-xs">
+            <div className="bg-white rounded-xl border border-slate-200 p-8 sm:p-12 text-center text-slate-400 text-xs">
               Select a campaign on the left to monitor live recipient progress.
             </div>
           )}
@@ -465,13 +465,13 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
 
       {/* Guided Campaign Builder Wizard Modal */}
       {showBuilder && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+            <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-bold text-base leading-tight">Guided Campaign Builder</h3>
-                <p className="text-[11px] text-slate-400">Step {builderStep} of 4: {builderStep === 1 ? 'Audience & Segment' : builderStep === 2 ? 'Channel & Template' : builderStep === 3 ? 'Personalization & Preview' : 'Review & Confirm'}</p>
+                <h3 className="font-bold text-sm sm:text-base leading-tight">Guided Campaign Builder</h3>
+                <p className="text-[10px] sm:text-[11px] text-slate-400">Step {builderStep} of 4: {builderStep === 1 ? 'Audience & Segment' : builderStep === 2 ? 'Channel & Template' : builderStep === 3 ? 'Personalization & Preview' : 'Review & Confirm'}</p>
               </div>
               <button onClick={() => setShowBuilder(false)} className="text-slate-400 hover:text-white p-1 rounded">
                 <X className="w-5 h-5" />
@@ -479,23 +479,23 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
             </div>
 
             {/* Stepper Indicator */}
-            <div className="grid grid-cols-4 border-b border-slate-200 text-xs font-semibold text-center bg-slate-50 shrink-0">
-              <div className={`py-2.5 ${builderStep === 1 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+            <div className="grid grid-cols-4 border-b border-slate-200 text-[10px] sm:text-xs font-semibold text-center bg-slate-50 shrink-0">
+              <div className={`py-2 sm:py-2.5 ${builderStep === 1 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
                 1. Audience
               </div>
-              <div className={`py-2.5 ${builderStep === 2 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+              <div className={`py-2 sm:py-2.5 ${builderStep === 2 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
                 2. Template
               </div>
-              <div className={`py-2.5 ${builderStep === 3 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+              <div className={`py-2 sm:py-2.5 ${builderStep === 3 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
                 3. Preview
               </div>
-              <div className={`py-2.5 ${builderStep === 4 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+              <div className={`py-2 sm:py-2.5 ${builderStep === 4 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
                 4. Confirm
               </div>
             </div>
 
             {/* Wizard Body */}
-            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+            <div className="p-3.5 sm:p-6 overflow-y-auto flex-1 space-y-4">
               {/* STEP 1: Audience Selection */}
               {builderStep === 1 && (
                 <div className="space-y-4">
@@ -548,7 +548,7 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                       type="button"
                       onClick={() => setBuilderStep(2)}
                       disabled={!campaignName.trim() || selectedLeadIds.length === 0}
-                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       <span>Continue to Channel & Template</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -589,7 +589,7 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                               : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
                           }`}
                         >
-                          <div className="flex items-center justify-between mb-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1 gap-0.5">
                             <span className="font-bold text-slate-900">
                               [{t.channel.toUpperCase()}] {t.title}
                             </span>
@@ -613,18 +613,18 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                     />
                   </div>
 
-                  <div className="pt-2 flex justify-between items-center border-t border-slate-100">
+                  <div className="pt-2 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
                     <button
                       type="button"
                       onClick={() => setBuilderStep(1)}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium"
+                      className="text-xs text-slate-600 hover:text-slate-900 font-medium py-1.5 text-center"
                     >
                       Back to Audience
                     </button>
                     <button
                       type="button"
                       onClick={() => setBuilderStep(3)}
-                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                      className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <span>Preview Real Lead Personalization</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -636,7 +636,7 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
               {/* STEP 3: Personalization & Real Sample Preview */}
               {builderStep === 3 && (
                 <div className="space-y-4">
-                  <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-lg text-xs">
+                  <div className="bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-lg text-xs">
                     <span className="font-bold text-slate-900 block mb-1">Personalization Preview with Sample Leads</span>
                     <p className="text-slate-500 text-[11px]">
                       Tokens <code className="bg-white px-1 rounded border border-slate-200 text-blue-600 font-mono">&#123;CONTACT_NAME&#125;</code>, <code className="bg-white px-1 rounded border border-slate-200 text-blue-600 font-mono">&#123;BUSINESS_NAME&#125;</code>, and <code className="bg-white px-1 rounded border border-slate-200 text-blue-600 font-mono">&#123;CITY&#125;</code> are dynamically populated for each recipient.
@@ -644,26 +644,26 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                   </div>
 
                   {/* Rendered Preview Card */}
-                  <div className="bg-white border border-slate-300 rounded-xl p-5 shadow-xs space-y-3">
-                    <div className="flex items-center justify-between text-xs border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-800">Preview Recipient:</span>
-                        <span className="font-semibold text-blue-600">
+                  <div className="bg-white border border-slate-300 rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
+                    <div className="flex flex-col xs:flex-row xs:items-center justify-between text-xs border-b border-slate-100 pb-2 gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-slate-800">Preview:</span>
+                        <span className="font-semibold text-blue-600 truncate max-w-[200px] xs:max-w-none">
                           {previewLeadIndex === 0 ? 'Declan Murphy (Apex Logistics Ireland Ltd, Dublin 2)' : 'Sean O’Connor (Celtic Marine Engineering Ltd, Cork)'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 self-start xs:self-auto">
                         <button
                           type="button"
                           onClick={() => setPreviewLeadIndex(previewLeadIndex === 0 ? 1 : 0)}
                           className="px-2 py-0.5 rounded border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
                         >
-                          Toggle Sample Lead
+                          Toggle Sample
                         </button>
                       </div>
                     </div>
 
-                    <div className="text-xs text-slate-700 whitespace-pre-line leading-relaxed font-sans bg-slate-50/50 p-4 rounded-lg border border-slate-100">
+                    <div className="text-xs text-slate-700 whitespace-pre-line leading-relaxed font-sans bg-slate-50/50 p-3 sm:p-4 rounded-lg border border-slate-100">
                       {templateBody
                         .replace(/{CONTACT_NAME}/g, previewLeadIndex === 0 ? 'Declan' : 'Sean')
                         .replace(/{BUSINESS_NAME}/g, previewLeadIndex === 0 ? 'Apex Logistics Ireland Ltd' : 'Celtic Marine Engineering Ltd')
@@ -671,18 +671,18 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-2 flex justify-between items-center border-t border-slate-100">
+                  <div className="pt-2 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
                     <button
                       type="button"
                       onClick={() => setBuilderStep(2)}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium"
+                      className="text-xs text-slate-600 hover:text-slate-900 font-medium py-1.5 text-center"
                     >
                       Back to Template
                     </button>
                     <button
                       type="button"
                       onClick={() => setBuilderStep(4)}
-                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                      className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <span>Final Review & Launch</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -694,9 +694,9 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
               {/* STEP 4: Review & Confirm */}
               {builderStep === 4 && (
                 <div className="space-y-4">
-                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2 text-xs">
+                  <div className="p-3.5 sm:p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2 text-xs">
                     <div className="flex items-center gap-2 text-emerald-900 font-bold">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>Ready to Deploy Outreach Campaign</span>
                     </div>
                     <p className="text-emerald-800 leading-relaxed text-[11px]">
@@ -704,30 +704,30 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                     </p>
                   </div>
 
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-medium">Campaign Title:</span>
-                      <span className="font-bold text-slate-900">{campaignName}</span>
+                  <div className="bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-500 font-medium shrink-0">Campaign:</span>
+                      <span className="font-bold text-slate-900 truncate text-right">{campaignName}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500 font-medium">Selected Medium:</span>
+                      <span className="text-slate-500 font-medium">Channel:</span>
                       <span className="font-semibold text-slate-800 capitalize">{channel}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-medium">Target Segment:</span>
-                      <span className="font-semibold text-slate-800">{targetAudienceText}</span>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-500 font-medium shrink-0">Audience:</span>
+                      <span className="font-semibold text-slate-800 truncate text-right">{targetAudienceText}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500 font-medium">Recipient Count:</span>
+                      <span className="text-slate-500 font-medium">Recipients:</span>
                       <span className="font-bold text-blue-700">{selectedLeadIds.length} corporate prospects</span>
                     </div>
                   </div>
 
-                  <div className="pt-2 flex justify-between items-center border-t border-slate-100">
+                  <div className="pt-2 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
                     <button
                       type="button"
                       onClick={() => setBuilderStep(3)}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium"
+                      className="text-xs text-slate-600 hover:text-slate-900 font-medium py-1.5 text-center"
                     >
                       Back to Preview
                     </button>
@@ -735,7 +735,7 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                       type="button"
                       onClick={handleLaunchCampaign}
                       disabled={isLaunching}
-                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       {isLaunching ? (
                         <>

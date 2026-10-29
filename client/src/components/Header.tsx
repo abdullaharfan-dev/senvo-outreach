@@ -6,7 +6,8 @@ import {
   CheckCircle2,
   User,
   FlaskConical,
-  LogOut
+  LogOut,
+  Menu
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -16,6 +17,7 @@ interface HeaderProps {
   onRefresh: () => void;
   onOpenTestTools?: () => void;
   onLogout?: () => void;
+  onToggleMobileMenu?: () => void;
   aiStatus: {
     status: string;
     model: string;
@@ -29,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   onRefresh,
   onOpenTestTools,
   onLogout,
+  onToggleMobileMenu,
 }) => {
   const [resetting, setResetting] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
@@ -47,15 +50,32 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-2xs">
-      {/* Title & Context */}
-      <div>
-        <h1 className="text-base font-bold text-slate-900 tracking-tight">{title}</h1>
-        <p className="text-xs text-slate-500 font-medium">{subtitle}</p>
+    <header className="h-14 sm:h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between shrink-0 shadow-2xs">
+      {/* Left: Mobile Menu Toggle & Title */}
+      <div className="flex items-center gap-2 min-w-0">
+        {onToggleMobileMenu && (
+          <button
+            onClick={onToggleMobileMenu}
+            className="lg:hidden p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
+            aria-label="Open navigation menu"
+            title="Open Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
+
+        <div className="min-w-0">
+          <h1 className="text-xs sm:text-base font-bold text-slate-900 tracking-tight truncate max-w-[150px] xs:max-w-[220px] sm:max-w-none">
+            {title}
+          </h1>
+          <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate max-w-[150px] xs:max-w-[240px] sm:max-w-none hidden xs:block">
+            {subtitle}
+          </p>
+        </div>
       </div>
 
-      {/* Right Controls - Production Oriented */}
-      <div className="flex items-center gap-3">
+      {/* Right Controls - Responsive */}
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Workspace Location Indicator */}
         <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700">
           <Building2 className="w-3.5 h-3.5 text-blue-600" />
@@ -65,9 +85,9 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Operational Status */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-800">
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span className="font-medium text-[11px]">System Online</span>
+        <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-800" title="System Operational">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+          <span className="font-medium text-[11px] hidden sm:inline">Online</span>
         </div>
 
         {/* Refresh Data */}
@@ -75,6 +95,7 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onRefresh}
           className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
           title="Refresh live data from database"
+          aria-label="Refresh live data"
         >
           <RefreshCw className="w-4 h-4" />
         </button>
@@ -83,28 +104,30 @@ export const Header: React.FC<HeaderProps> = ({
         {onOpenTestTools && (
           <button
             onClick={onOpenTestTools}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-500 hover:text-blue-700 hover:bg-blue-50 border border-slate-200 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-2 py-1.5 text-slate-500 hover:text-blue-700 hover:bg-blue-50 border border-slate-200 rounded-lg text-xs font-medium transition-colors cursor-pointer"
             title="Internal Scenario Testing & Simulation Tools"
+            aria-label="Testing Tools"
           >
             <FlaskConical className="w-3.5 h-3.5 text-slate-400" />
-            <span className="hidden sm:inline text-[11px]">Test Tools</span>
+            <span className="hidden md:inline text-[11px]">Test Tools</span>
           </button>
         )}
 
         {/* User Account / Profile */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-          <div className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-semibold">
+        <div className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-2 border-l border-slate-200">
+          <div className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-semibold shrink-0">
             DO
           </div>
-          <div className="hidden md:block text-left">
+          <div className="hidden xl:block text-left">
             <p className="text-xs font-semibold text-slate-800 leading-tight">Declan O'Sullivan</p>
             <p className="text-[10px] text-slate-400 leading-tight">Client Services Lead</p>
           </div>
           {onLogout && (
             <button
               onClick={onLogout}
-              className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer ml-1"
+              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
               title="Sign Out of Demo Workspace"
+              aria-label="Sign Out"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>

@@ -15,7 +15,8 @@ import {
   AlertCircle,
   Award,
   Clock,
-  ArrowRight
+  ArrowRight,
+  ChevronLeft
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Conversation, Message, AiAssessment, ChannelType } from '../types';
@@ -32,6 +33,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(initialConversationId || null);
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
+  const [mobileTab, setMobileTab] = useState<'list' | 'chat' | 'details'>(initialConversationId ? 'chat' : 'list');
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState<string>('');
@@ -81,6 +83,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
   useEffect(() => {
     if (initialConversationId) {
       setSelectedConvId(initialConversationId);
+      setMobileTab('chat');
     }
   }, [initialConversationId]);
 
@@ -157,9 +160,9 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
   const latestAssessment = selectedConv?.assessments?.[0];
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col overflow-hidden bg-slate-50">
+    <div className="h-full flex flex-col overflow-hidden bg-slate-50">
       {/* Top Channel Bar */}
-      <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center justify-between shrink-0">
+      <div className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shrink-0 gap-2">
         <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-medium">
           {[
             { id: 'all', label: 'All Channels' },
@@ -185,8 +188,8 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
           ))}
         </div>
 
-        <div className="text-xs text-slate-500 font-medium">
-          <span>Active Threads: </span>
+        <div className="text-xs text-slate-500 font-medium whitespace-nowrap shrink-0">
+          <span>Threads: </span>
           <span className="font-bold text-slate-800">{conversations.length}</span>
         </div>
       </div>
@@ -194,7 +197,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
       {/* Main 3-Column Inbox Layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Conversation List */}
-        <div className="w-80 md:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0">
+        <div className={`w-full lg:w-80 xl:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 ${mobileTab === 'list' ? 'flex' : 'hidden lg:flex'}`}>
           <div className="p-3 border-b border-slate-200 bg-slate-50/50">
             <input
               type="text"
@@ -219,6 +222,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                     onClick={() => {
                       setSelectedConvId(c.id);
                       setReplyText('');
+                      setMobileTab('chat');
                     }}
                     className={`p-3.5 transition-all cursor-pointer ${
                       isSelected
@@ -269,39 +273,60 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
         </div>
 
         {/* Center: Message Thread & Composer */}
-        <div className="flex-1 flex flex-col bg-slate-50/50 overflow-hidden">
+        <div className={`flex-1 flex flex-col bg-slate-50/50 overflow-hidden ${mobileTab === 'chat' ? 'flex' : 'hidden lg:flex'}`}>
           {selectedConv ? (
             <>
               {/* Thread Header */}
-              <div className="h-14 px-6 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-2xs">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+              <div className="h-14 px-3 sm:px-6 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-2xs gap-2">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  {/* Mobile Back Button */}
+                  <button
+                    onClick={() => setMobileTab('list')}
+                    className="lg:hidden p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg shrink-0 cursor-pointer flex items-center gap-0.5 text-xs font-semibold"
+                    title="Back to Conversations"
+                    aria-label="Back to Conversations"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span className="hidden xs:inline">Threads</span>
+                  </button>
+
+                  <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
                     {getChannelIcon(selectedConv.channel)}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-slate-900 text-xs sm:text-sm">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <h3 className="font-bold text-slate-900 text-xs sm:text-sm truncate">
                         {selectedConv.company_name}
                       </h3>
-                      <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                      <span className="text-[9px] sm:text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">
                         {selectedConv.channel}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
                       {selectedConv.contact_name} • {selectedConv.city}, Ireland
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-medium text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded">
-                    Channel: {selectedConv.channel === 'email' ? 'Microsoft 365 Exchange' : selectedConv.channel === 'linkedin' ? 'LinkedIn InMail' : selectedConv.channel === 'whatsapp' ? 'WhatsApp Business' : selectedConv.channel}
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  {/* Mobile Info / AI Assessment Toggle */}
+                  <button
+                    onClick={() => setMobileTab('details')}
+                    className="lg:hidden px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                    title="View Prospect & AI Assessment"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    <span>AI Insights</span>
+                  </button>
+
+                  <span className="hidden sm:inline text-[11px] font-medium text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded">
+                    Channel: {selectedConv.channel === 'email' ? 'Microsoft 365' : selectedConv.channel === 'linkedin' ? 'LinkedIn InMail' : selectedConv.channel === 'whatsapp' ? 'WhatsApp Business' : selectedConv.channel}
                   </span>
                 </div>
               </div>
 
               {/* Message History Bubble Stream */}
-              <div className="flex-1 p-6 overflow-y-auto space-y-4">
+              <div className="flex-1 p-3.5 sm:p-6 overflow-y-auto space-y-4">
                 {selectedConv.messages?.map((msg) => {
                   const isInbound = msg.direction === 'inbound';
                   return (
@@ -327,7 +352,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                       </div>
 
                       <div
-                        className={`max-w-lg p-3.5 rounded-2xl text-xs leading-relaxed font-sans shadow-2xs whitespace-pre-line ${
+                        className={`max-w-[85%] sm:max-w-lg p-3 sm:p-3.5 rounded-2xl text-xs leading-relaxed font-sans shadow-2xs whitespace-pre-line ${
                           isInbound
                             ? 'bg-white border border-slate-200 text-slate-800 rounded-tl-xs'
                             : msg.is_ai_generated
@@ -344,7 +369,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
               </div>
 
               {/* Outbound Reply Composer */}
-              <div className="p-4 bg-white border-t border-slate-200 shrink-0 space-y-2.5">
+              <div className="p-3 sm:p-4 bg-white border-t border-slate-200 shrink-0 space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <span className="font-semibold text-slate-700">Response Composer</span>
                   {latestAssessment && (
@@ -353,7 +378,8 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                       className="text-blue-600 hover:text-blue-800 font-semibold text-xs flex items-center gap-1 cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>Insert Recommended Reply</span>
+                      <span className="hidden xs:inline">Insert Recommended Reply</span>
+                      <span className="xs:hidden">Insert AI Reply</span>
                     </button>
                   )}
                 </div>
@@ -364,7 +390,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     placeholder="Type an outbound response to send to prospect..."
-                    className="w-full text-xs border border-slate-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans pr-24"
+                    className="w-full text-xs border border-slate-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans pb-11 sm:pb-3 sm:pr-28"
                   />
                   <div className="absolute right-2 bottom-2.5 flex items-center gap-1.5">
                     <button
@@ -380,14 +406,26 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-xs p-6 text-center">
               Select a conversation to view thread history and qualification analysis.
             </div>
           )}
         </div>
 
         {/* Right: Lead Context & SENVO Intelligence Panel */}
-        <div className="w-80 md:w-96 bg-white border-l border-slate-200 overflow-y-auto p-5 space-y-5 shrink-0">
+        <div className={`w-full lg:w-80 xl:w-96 bg-white border-l border-slate-200 overflow-y-auto p-4 sm:p-5 space-y-4 sm:space-y-5 shrink-0 ${mobileTab === 'details' ? 'block' : 'hidden lg:block'}`}>
+          {/* Mobile Back to Chat Button */}
+          <div className="lg:hidden pb-3 border-b border-slate-100 flex items-center justify-between">
+            <button
+              onClick={() => setMobileTab('chat')}
+              className="p-1 -ml-1 text-slate-600 hover:text-slate-900 flex items-center gap-1 text-xs font-semibold cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Back to Thread</span>
+            </button>
+            <span className="text-[10px] uppercase font-bold text-slate-400">Prospect Intelligence</span>
+          </div>
+
           {selectedConv && (
             <>
               {/* Prospect Details */}
@@ -477,7 +515,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                       "{latestAssessment.suggested_reply}"
                     </p>
 
-                    <div className="flex gap-2 pt-1">
+                    <div className="flex flex-col sm:flex-row gap-2 pt-1">
                       <button
                         onClick={() => setReplyText(latestAssessment.suggested_reply)}
                         className="flex-1 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
