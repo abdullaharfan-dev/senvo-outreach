@@ -70249,6 +70249,13 @@ var require_pg_pool = __commonJS({
   }
 });
 
+// server/src/db/empty_shim.cjs
+var require_empty_shim = __commonJS({
+  "server/src/db/empty_shim.cjs"(exports2, module2) {
+    module2.exports = null;
+  }
+});
+
 // server/node_modules/pg/lib/native/query.js
 var require_query3 = __commonJS({
   "server/node_modules/pg/lib/native/query.js"(exports2, module2) {
@@ -70398,7 +70405,7 @@ var require_client2 = __commonJS({
     var nodeUtils = require("util");
     var Native;
     try {
-      Native = require("pg-native");
+      Native = require_empty_shim();
     } catch (e) {
       throw e;
     }
@@ -72414,7 +72421,7 @@ if (isPostgres) {
 }
 var getSqlite = async () => {
   if (sqliteDb) return sqliteDb;
-  const { default: sqlite3Module } = await import("sqlite3");
+  const { default: sqlite3Module } = await Promise.resolve().then(() => __toESM(require_empty_shim(), 1));
   const dataDir = process.env.DATA_DIR || import_path.default.resolve(__dirname, "../../data");
   if (!import_fs.default.existsSync(dataDir)) {
     import_fs.default.mkdirSync(dataDir, { recursive: true });
