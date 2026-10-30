@@ -28,10 +28,17 @@ import {
   Square,
   Briefcase,
   Target,
-  ExternalLink
+  ExternalLink,
+  Compass,
+  FileText,
+  ShieldCheck,
+  Calendar,
+  CheckCircle,
+  CircleDashed,
+  ArrowUpRight
 } from 'lucide-react';
 import { api } from '../services/api';
-import type { Lead, LeadSegment, ParseFileResult, ValidationResult, ValidatedLeadRecord } from '../types';
+import type { Lead, LeadSegment, ParseFileResult, ValidationResult, ValidatedLeadRecord, Conversation } from '../types';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import { Badge, type BadgeVariant } from './ui/Badge';
 import { Button } from './ui/Button';
@@ -41,14 +48,17 @@ import { EmptyState } from './ui/EmptyState';
 interface LeadsModuleProps {
   onLaunchCampaignWithSegment?: (segmentName: string, leadIds: string[], channel?: string) => void;
   onNavigateToInbox?: (conversationId?: string) => void;
+  onNavigateToQualified?: () => void;
 }
 
 export const LeadsModule: React.FC<LeadsModuleProps> = ({
   onLaunchCampaignWithSegment,
   onNavigateToInbox,
+  onNavigateToQualified,
 }) => {
   const [activeTab, setActiveTab] = useState<'directory' | 'segments'>('directory');
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [segments, setSegments] = useState<LeadSegment[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -64,6 +74,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
   const [showImportWizard, setShowImportWizard] = useState<boolean>(false);
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [drawerTab, setDrawerTab] = useState<'brief' | 'journey'>('brief');
 
   // Guided Import Wizard State (Steps 1 to 4)
   const [importStep, setImportStep] = useState<1 | 2 | 3 | 4>(1);
@@ -90,15 +101,19 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const res = await api.getLeads({
-        search,
-        industry: industryFilter,
-        priority: priorityFilter,
-        status: statusFilter,
-        limit: 100,
-      });
-      setLeads(res.leads);
-      setTotal(res.total);
+      const [leadsRes, convsRes] = await Promise.all([
+        api.getLeads({
+          search,
+          industry: industryFilter,
+          priority: priorityFilter,
+          status: statusFilter,
+          limit: 100,
+        }),
+        api.getConversations().catch(() => [])
+      ]);
+      setLeads(leadsRes.leads);
+      setTotal(leadsRes.total);
+      setConversations(convsRes);
     } catch (err) {
       console.error('Failed to load leads:', err);
     } finally {
@@ -272,6 +287,42 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
     }
   };
 
+  const getRecommendedOutreach = (industry: string) => {
+    if (industry.includes('Logistics') || industry.includes('Freight')) {
+      return {
+        approach: 'Statutory Audit Exemption & Port VAT3 Briefing',
+        notes: 'Highlight Revenue cross-border reverse charges, customs VAT deferral, and Companies Act 2014 audit exemption limits.',
+        objection: 'Existing local accountant may lack specialized cross-border logistics VAT filing workflows.'
+      };
+    }
+    if (industry.includes('MedTech') || industry.includes('Life Sciences')) {
+      return {
+        approach: 'Section 766 R&D Tax Credit & Grant Audit Briefing',
+        notes: 'Focus on Enterprise Ireland / IDA capital grant expenditure certification and Section 766 R&D credit optimization.',
+        objection: 'Concerns over Revenue clawback or audit scrutiny for scientific research claims.'
+      };
+    }
+    if (industry.includes('Software') || industry.includes('SaaS')) {
+      return {
+        approach: 'ERP Migration Advisory (NetSuite / Xero) & Controller Search',
+        notes: 'Address recurring SaaS revenue recognition, cross-border IP holding structures, and ACCA finance leadership search.',
+        objection: 'Firm already uses general cloud software like QuickBooks but outgrowing entry-tier reporting.'
+      };
+    }
+    if (industry.includes('Retail') || industry.includes('Hospitality')) {
+      return {
+        approach: 'Managed Payroll Bureau & PAYE Modernisation',
+        notes: 'Focus on multi-branch weekly timesheet processing, BrightPay integration, and mandatory pension auto-enrollment preparation.',
+        objection: 'Internal payroll drag and seasonal staffing turnover.'
+      };
+    }
+    return {
+      approach: 'Statutory Year-End & CRO Form B1 Corporate Filing',
+      notes: 'Highlight annual return compliance, registered Dublin office facilities, and Revenue ROS corporate tax returns.',
+      objection: 'Company board inertia or satisfaction with incumbent regional bookkeeping firm.'
+    };
+  };
+
   const industries = [
     'Freight & Logistics',
     'MedTech & Life Sciences',
@@ -284,6 +335,15 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
     'Professional Services',
     'Media & Digital Agency',
   ];
+
+  // Helper to match active conversation
+  const activeConversationForLead = selectedLead
+    ? conversations.find(
+        (c) =>
+          c.lead_id === selectedLead.id ||
+          c.company_name.toLowerCase() === selectedLead.company_name.toLowerCase()
+      )
+    : null;
 
   return (
     <div className="p-3.5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
@@ -509,7 +569,10 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                       return (
                         <tr
                           key={lead.id}
-                          onClick={() => setSelectedLead(lead)}
+                          onClick={() => {
+                            setSelectedLead(lead);
+                            setDrawerTab('brief');
+                          }}
                           className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${
                             isSelected ? 'bg-blue-50/40' : ''
                           }`}
@@ -603,16 +666,31 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                             </Badge>
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedLead(lead);
-                              }}
-                              className="text-blue-600 hover:text-blue-800 font-semibold text-xs cursor-pointer inline-flex items-center gap-0.5"
-                            >
-                              <span>Details</span>
-                              <ChevronRight className="w-3 h-3" />
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedLead(lead);
+                                  setDrawerTab('brief');
+                                }}
+                                className="text-blue-600 hover:text-blue-800 font-semibold text-xs cursor-pointer inline-flex items-center gap-0.5"
+                              >
+                                <span>Brief</span>
+                                <ChevronRight className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedLead(lead);
+                                  setDrawerTab('journey');
+                                }}
+                                className="text-indigo-600 hover:text-indigo-800 font-semibold text-xs cursor-pointer inline-flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200"
+                                title="View 8-stage prospect journey visualizer"
+                              >
+                                <Compass className="w-3 h-3 text-indigo-600" />
+                                <span>Journey</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -644,7 +722,10 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                 return (
                   <Card
                     key={lead.id}
-                    onClick={() => setSelectedLead(lead)}
+                    onClick={() => {
+                      setSelectedLead(lead);
+                      setDrawerTab('brief');
+                    }}
                     className={`p-3.5 space-y-2.5 transition-all cursor-pointer ${
                       isSelected ? 'border-blue-500 bg-blue-50/30' : ''
                     }`}
@@ -709,10 +790,23 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                           </Badge>
                         )}
                       </div>
-                      <span className="text-blue-600 font-semibold text-xs flex items-center gap-0.5">
-                        <span>Details</span>
-                        <ChevronRight className="w-3 h-3" />
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-blue-600 font-semibold text-xs flex items-center gap-0.5">
+                          <span>Brief</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </span>
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLead(lead);
+                            setDrawerTab('journey');
+                          }}
+                          className="text-indigo-600 font-semibold text-xs flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200"
+                        >
+                          <Compass className="w-3 h-3" />
+                          <span>Journey</span>
+                        </span>
+                      </div>
                     </div>
                   </Card>
                 );
@@ -1224,20 +1318,23 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
         </div>
       )}
 
-      {/* Lead Detail Slide-over Panel */}
+      {/* Part 2 & Part 3: Company Intelligence Brief & Prospect Journey Visualizer Slide-over */}
       {selectedLead && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex justify-end z-50 animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl p-5 sm:p-6 overflow-y-auto space-y-6 flex flex-col justify-between">
-            <div className="space-y-6">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex justify-end z-50 animate-in fade-in duration-150">
+          <div className="w-full max-w-xl bg-white h-full shadow-2xl p-5 sm:p-6 overflow-y-auto space-y-5 flex flex-col justify-between">
+            <div className="space-y-4">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div>
-                  <Badge variant="primary" size="xs">
-                    Corporate Prospect Profile
-                  </Badge>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 mt-1">
-                    {selectedLead.company_name}
-                  </h3>
+              <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                      {selectedLead.company_name}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {selectedLead.city}, Ireland &bull; {selectedLead.industry}
+                  </p>
                 </div>
                 <button
                   onClick={() => setSelectedLead(null)}
@@ -1247,108 +1344,402 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                 </button>
               </div>
 
-              {/* ICP Intelligence Score Card */}
-              <Card className="border-blue-200/80 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 p-4 space-y-3 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                    <Target className="w-4 h-4 text-blue-600" />
-                    <span>ICP Fit Evaluation</span>
-                  </div>
-                  <Badge variant="primary" size="sm">
-                    {calculateIcpScore(selectedLead)}/100 Tier 1 Fit
-                  </Badge>
-                </div>
+              {/* Dual Tab Switcher: Intelligence Brief vs. Prospect Journey */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-semibold">
+                <button
+                  onClick={() => setDrawerTab('brief')}
+                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    drawerTab === 'brief'
+                      ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Company Intelligence Brief</span>
+                </button>
 
-                <ProgressBar
-                  value={calculateIcpScore(selectedLead)}
-                  color="blue"
-                  size="sm"
-                />
-
-                <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                  <div className="bg-white/80 p-2 rounded border border-blue-100 flex items-center justify-between">
-                    <span className="text-slate-500">Industry Fit:</span>
-                    <span className="font-bold text-emerald-700">100%</span>
-                  </div>
-                  <div className="bg-white/80 p-2 rounded border border-blue-100 flex items-center justify-between">
-                    <span className="text-slate-500">Geography:</span>
-                    <span className="font-bold text-emerald-700">100%</span>
-                  </div>
-                  <div className="bg-white/80 p-2 rounded border border-blue-100 flex items-center justify-between">
-                    <span className="text-slate-500">Decision Maker:</span>
-                    <span className="font-bold text-emerald-700">
-                      {selectedLead.contact_name ? '100%' : '50%'}
-                    </span>
-                  </div>
-                  <div className="bg-white/80 p-2 rounded border border-blue-100 flex items-center justify-between">
-                    <span className="text-slate-500">Channels:</span>
-                    <span className="font-bold text-emerald-700">
-                      {selectedLead.email && selectedLead.phone ? '100%' : '60%'}
-                    </span>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Contact & Registration Data */}
-              <div className="space-y-3.5 text-xs">
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Primary Decision Maker</span>
-                  <span className="font-semibold text-slate-900 text-sm">
-                    {selectedLead.contact_name || 'Managing Director'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Corporate Email</span>
-                  <span className="text-slate-800 font-mono break-all">{selectedLead.email || '—'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Direct Telephone</span>
-                  <span className="text-slate-800 font-mono">{selectedLead.phone || '—'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Operating Hub</span>
-                  <span className="text-slate-800 font-medium">{selectedLead.city}, Ireland</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Sector Classification</span>
-                  <span className="text-slate-800 font-medium">{selectedLead.industry}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Lifecycle Stage</span>
-                  <Badge variant={getStatusBadgeVariant(selectedLead.status)} size="sm">
-                    {selectedLead.status.replace('_', ' ').toUpperCase()}
-                  </Badge>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Statutory CRO Status</span>
-                  <div className="flex items-center gap-1.5 text-emerald-700 font-medium bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>CRO Registered Irish Trading Entity</span>
-                  </div>
-                </div>
+                <button
+                  onClick={() => setDrawerTab('journey')}
+                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    drawerTab === 'journey'
+                      ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Compass className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Prospect Journey Visualizer</span>
+                </button>
               </div>
+
+              {/* TAB 1: COMPANY INTELLIGENCE BRIEF */}
+              {drawerTab === 'brief' && (
+                <div className="space-y-4 animate-in fade-in duration-150 text-xs">
+                  {/* Verified Corporate Facts Card */}
+                  <Card className="border-slate-200/90 p-4 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Verified Corporate Profile (CRO Registered)</span>
+                      </span>
+                      <Badge variant={getPriorityBadgeVariant(selectedLead.priority)} size="xs">
+                        {selectedLead.priority.toUpperCase()} PRIORITY
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[10px] font-semibold uppercase">Decision Maker</span>
+                        <span className="font-bold text-slate-900 text-sm">
+                          {selectedLead.contact_name || 'Managing Director'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] font-semibold uppercase">Operating Hub</span>
+                        <span className="font-semibold text-slate-800">
+                          {selectedLead.city}, Ireland
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] font-semibold uppercase">Corporate Email</span>
+                        <span className="font-mono text-slate-800 break-all">{selectedLead.email || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] font-semibold uppercase">Direct Telephone</span>
+                        <span className="font-mono text-slate-800">{selectedLead.phone || '—'}</span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* ICP Fit Reasoning Card */}
+                  <Card className="border-blue-200/80 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 p-4 space-y-2.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
+                        <Target className="w-4 h-4 text-blue-600" />
+                        <span>ICP Score & Evaluation Reasoning</span>
+                      </div>
+                      <Badge variant="primary" size="sm">
+                        {calculateIcpScore(selectedLead)}/100 Tier 1 Fit
+                      </Badge>
+                    </div>
+
+                    <ProgressBar
+                      value={calculateIcpScore(selectedLead)}
+                      color="blue"
+                      size="sm"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                      <div className="bg-white/80 p-2 rounded border border-blue-100 flex justify-between">
+                        <span className="text-slate-500">Industry Fit:</span>
+                        <span className="font-bold text-emerald-700">100%</span>
+                      </div>
+                      <div className="bg-white/80 p-2 rounded border border-blue-100 flex justify-between">
+                        <span className="text-slate-500">Hub Alignment:</span>
+                        <span className="font-bold text-emerald-700">100%</span>
+                      </div>
+                      <div className="bg-white/80 p-2 rounded border border-blue-100 flex justify-between">
+                        <span className="text-slate-500">Decision Maker:</span>
+                        <span className="font-bold text-emerald-700">
+                          {selectedLead.contact_name ? '100%' : '50%'}
+                        </span>
+                      </div>
+                      <div className="bg-white/80 p-2 rounded border border-blue-100 flex justify-between">
+                        <span className="text-slate-500">Reachability:</span>
+                        <span className="font-bold text-emerald-700">
+                          {selectedLead.email && selectedLead.phone ? '100%' : '60%'}
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Potential Objections & Recommended Approach */}
+                  {(() => {
+                    const rec = getRecommendedOutreach(selectedLead.industry);
+                    return (
+                      <Card className="border-slate-200/90 p-4 space-y-2.5 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Recommended Outreach Strategy</span>
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">SENVO Practice Guidelines</span>
+                        </div>
+
+                        <div className="p-2.5 bg-blue-50/60 border border-blue-100 rounded-lg space-y-1">
+                          <span className="font-bold text-blue-900 block text-xs">{rec.approach}</span>
+                          <p className="text-slate-600 text-[11px] leading-relaxed">{rec.notes}</p>
+                        </div>
+
+                        <div className="p-2.5 bg-amber-50/60 border border-amber-100 rounded-lg space-y-1">
+                          <span className="font-bold text-amber-900 block text-xs">Anticipated Objection & Defense:</span>
+                          <p className="text-slate-600 text-[11px] leading-relaxed">{rec.objection}</p>
+                        </div>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* Recorded Engagement Context */}
+                  <Card className="border-slate-200/90 p-4 space-y-2 shadow-2xs">
+                    <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider block">
+                      Recorded Dialogue & Inbound Inquiry
+                    </span>
+                    {activeConversationForLead?.last_message ? (
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs leading-relaxed text-slate-700 italic">
+                        "{activeConversationForLead.last_message}"
+                        <span className="block not-italic text-[10px] text-slate-400 font-medium mt-1">
+                          Captured via {activeConversationForLead.channel} &bull; Intent:{' '}
+                          <strong className="text-blue-700 capitalize">
+                            {(activeConversationForLead.latest_intent || 'General Corporate').replace(/_/g, ' ')}
+                          </strong>
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic py-2">
+                        No prospect turn recorded yet. Use the Campaign Builder or Unified Inbox to begin simulated outreach.
+                      </p>
+                    )}
+                  </Card>
+                </div>
+              )}
+
+              {/* TAB 2: PROSPECT JOURNEY VISUALIZER */}
+              {drawerTab === 'journey' && (
+                <div className="space-y-4 animate-in fade-in duration-150 text-xs">
+                  <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between text-xs text-indigo-950">
+                    <div className="flex items-center gap-2">
+                      <Compass className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span className="font-medium">
+                        <strong>8-Stage Lifecycle Journey:</strong> Tracked from initial discovery to Bitrix24 CRM handoff.
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Journey Timeline */}
+                  <div className="space-y-3 relative before:absolute before:left-3.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200 pl-8">
+                    {/* Stage 1: Discovery */}
+                    <div className="relative space-y-0.5">
+                      <span className="absolute -left-8 top-0.5 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                        ✓
+                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900 text-xs">1. Ingested & Verified</span>
+                        <Badge variant="success" size="xs">
+                          COMPLETED
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        {selectedLead.company_name} registered into persistent database with verified CRO status.
+                      </p>
+                    </div>
+
+                    {/* Stage 2: Enrichment */}
+                    <div className="relative space-y-0.5 pt-2">
+                      <span className="absolute -left-8 top-2.5 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                        ✓
+                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900 text-xs">2. Contact Channels Enriched</span>
+                        <Badge variant="success" size="xs">
+                          COMPLETED
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Primary decision maker identified: {selectedLead.contact_name || 'Managing Director'} (Email & Phone verified).
+                      </p>
+                    </div>
+
+                    {/* Stage 3: Segmentation */}
+                    <div className="relative space-y-0.5 pt-2">
+                      <span className="absolute -left-8 top-2.5 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                        ✓
+                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900 text-xs">3. Segmented for Outreach</span>
+                        <Badge variant="success" size="xs">
+                          COMPLETED
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Classified into {selectedLead.industry} Irish corporate target cluster.
+                      </p>
+                    </div>
+
+                    {/* Stage 4: Outreach Dispatch */}
+                    {(() => {
+                      const isDispatched = selectedLead.status !== 'uncontacted';
+                      return (
+                        <div className="relative space-y-0.5 pt-2">
+                          <span
+                            className={`absolute -left-8 top-2.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-2xs ${
+                              isDispatched ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {isDispatched ? '✓' : '4'}
+                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-900 text-xs">4. Outbound Outreach</span>
+                            <Badge variant={isDispatched ? 'success' : 'neutral'} size="xs">
+                              {isDispatched ? 'DISPATCHED' : 'AWAITING CAMPAIGN'}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            {isDispatched
+                              ? 'Personalized statutory briefing dispatched in simulated sandbox environment.'
+                              : 'Ready for enrollment in multi-channel email, LinkedIn, or WhatsApp campaign.'}
+                          </p>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Stage 5: Inbound Engagement */}
+                    {(() => {
+                      const hasReplied = Boolean(activeConversationForLead?.last_message);
+                      return (
+                        <div className="relative space-y-0.5 pt-2">
+                          <span
+                            className={`absolute -left-8 top-2.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-2xs ${
+                              hasReplied ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {hasReplied ? '✓' : '5'}
+                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-900 text-xs">5. Inbound Engagement</span>
+                            <Badge variant={hasReplied ? 'success' : 'neutral'} size="xs">
+                              {hasReplied ? 'ENGAGED' : 'PENDING REPLY'}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            {hasReplied
+                              ? `Prospect turn received via ${activeConversationForLead?.channel}.`
+                              : 'Awaiting prospect response or simulate inbound turn in Unified Inbox.'}
+                          </p>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Stage 6: AI Intent Qualification */}
+                    {(() => {
+                      const isQualified =
+                        selectedLead.status === 'qualified' ||
+                        Boolean(activeConversationForLead?.latest_intent?.includes('demo') || activeConversationForLead?.latest_intent?.includes('qualified'));
+                      return (
+                        <div className="relative space-y-0.5 pt-2">
+                          <span
+                            className={`absolute -left-8 top-2.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-2xs ${
+                              isQualified ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {isQualified ? '✓' : '6'}
+                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-900 text-xs">6. AI Intent Qualification</span>
+                            <Badge variant={isQualified ? 'success' : 'neutral'} size="xs">
+                              {isQualified ? 'QUALIFIED' : 'IN REVIEW'}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            {isQualified
+                              ? 'Classified as high-intent opportunity requiring discovery consultation.'
+                              : 'Intent classification evaluated against Irish corporate statutory guidelines.'}
+                          </p>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Stage 7: Meeting Interest */}
+                    {(() => {
+                      const hasMeeting =
+                        selectedLead.status === 'qualified' ||
+                        Boolean(activeConversationForLead?.latest_intent?.includes('meeting') || activeConversationForLead?.latest_intent?.includes('demo'));
+                      return (
+                        <div className="relative space-y-0.5 pt-2">
+                          <span
+                            className={`absolute -left-8 top-2.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-2xs ${
+                              hasMeeting ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {hasMeeting ? '✓' : '7'}
+                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-900 text-xs">7. Meeting Interest Confirmed</span>
+                            <Badge variant={hasMeeting ? 'success' : 'neutral'} size="xs">
+                              {hasMeeting ? 'CONFIRMED' : 'PENDING'}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            {hasMeeting
+                              ? '20-minute Zoom introductory discovery consultation requested.'
+                              : 'Co-Pilot prepared follow-up offering discovery timeslots.'}
+                          </p>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Stage 8: Bitrix24 CRM Handoff */}
+                    {(() => {
+                      const isHandoff = selectedLead.status === 'qualified';
+                      return (
+                        <div className="relative space-y-0.5 pt-2">
+                          <span
+                            className={`absolute -left-8 top-2.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-2xs ${
+                              isHandoff ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {isHandoff ? '✓' : '8'}
+                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-900 text-xs">8. Bitrix24 CRM Handoff</span>
+                            <Badge variant={isHandoff ? 'success' : 'neutral'} size="xs">
+                              {isHandoff ? 'CRM STAGED' : 'PENDING QUALIFICATION'}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            {isHandoff
+                              ? 'Opportunity formatted into crm.lead.add schema and staged for CRM webhook sync.'
+                              : 'Triggers automatically upon qualification in Unified Inbox.'}
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Actions Footer */}
             <div className="pt-4 border-t border-slate-200 space-y-2">
-              {onLaunchCampaignWithSegment && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedLead(null);
-                    onLaunchCampaignWithSegment(
-                      `Target: ${selectedLead.company_name}`,
-                      [selectedLead.id],
-                      'email'
-                    );
-                  }}
-                  className="w-full"
-                  leftIcon={<Send className="w-3.5 h-3.5" />}
-                >
-                  Enroll in New Campaign
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {activeConversationForLead && onNavigateToInbox && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedLead(null);
+                      onNavigateToInbox(activeConversationForLead.id);
+                    }}
+                    className="flex-1"
+                    leftIcon={<MessageSquare className="w-3.5 h-3.5" />}
+                  >
+                    Open in Unified Inbox
+                  </Button>
+                )}
+
+                {selectedLead.status === 'qualified' && onNavigateToQualified && (
+                  <Button
+                    variant="success"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedLead(null);
+                      onNavigateToQualified();
+                    }}
+                    className="flex-1"
+                    leftIcon={<Award className="w-3.5 h-3.5" />}
+                  >
+                    View in Qualified Leads
+                  </Button>
+                )}
+              </div>
 
               <Button
                 variant="outline"
@@ -1356,7 +1747,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                 onClick={() => setSelectedLead(null)}
                 className="w-full"
               >
-                Close Profile
+                Close Drawer
               </Button>
             </div>
           </div>

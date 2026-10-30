@@ -13,7 +13,12 @@ import {
   ChevronUp,
   MessageSquare,
   Sparkles,
-  Bot
+  Bot,
+  Calendar,
+  CalendarCheck,
+  Check,
+  ListChecks,
+  Info
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { QualifiedLead } from '../types';
@@ -54,33 +59,63 @@ export const QualifiedLeadsModule: React.FC<QualifiedLeadsModuleProps> = ({ onNa
     fetchQualifiedLeads();
   }, []);
 
+  const getSuggestedAgenda = (service?: string) => {
+    const s = service || 'Corporate Services & Statutory Accounting';
+    if (s.includes('Audit') || s.includes('CRO')) {
+      return [
+        'Review current turnover & balance sheet statutory audit exemption thresholds (Companies Act 2014)',
+        'Assess upcoming CRO Form B1 annual return deadline and non-resident director bond requirements',
+        'Review fixed fee guidelines and engagement letter onboarding timetable'
+      ];
+    }
+    if (s.includes('Payroll')) {
+      return [
+        'Evaluate current multi-location payroll operations, weekly timesheet drag, and BrightPay bureau setup',
+        'Confirm Revenue ROS PAYE Modernisation compliance and pension auto-enrollment roadmap',
+        'Demonstrate managed payroll bureau SLA and onboarding timetable'
+      ];
+    }
+    if (s.includes('Tax') || s.includes('VAT')) {
+      return [
+        'Analyze bi-monthly VAT3 cross-border reverse charge exposure and customs VAT deferral',
+        'Review Section 766 R&D tax credit claims and Revenue Commissioners compliance documentation',
+        'Scope quarterly advisory retainer and dedicated Senior Client Partner assignment'
+      ];
+    }
+    return [
+      'Conduct initial 15-minute statutory compliance health check across CRO and Revenue obligations',
+      'Clarify software migration requirements (Xero / NetSuite / Sage Intacct) and financial reporting cadence',
+      'Establish client partner onboarding timeline and statutory discovery scope'
+    ];
+  };
+
   return (
     <div className="p-3.5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-              Qualified Leads & Bitrix24 CRM Handoffs
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Meeting Conversion Workspace & Bitrix24 CRM Handoffs
             </h2>
             <Badge variant="success" size="sm">
-              {qualifiedLeads.length} Qualified
+              {qualifiedLeads.length} Qualified Opportunities
             </Badge>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Intent-classified high-value prospects staged for corporate advisory engagement and Bitrix24 CRM pipeline handoff.
+            High-intent Irish corporate prospects with confirmed discovery meeting interest staged for partner consultations.
           </p>
         </div>
 
         {/* CRM Gateway Staging Indicator */}
         <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 font-medium flex items-center gap-2 shrink-0 shadow-2xs">
           <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>Bitrix24 CRM Sync: Staging Verified</span>
+          <span>Bitrix24 CRM Gateway: Staging Verified</span>
         </div>
       </div>
 
       {/* Leads List */}
-      <div className="space-y-4">
+      <div className="space-y-5">
         {loading ? (
           <Card className="p-12 text-center text-slate-400 text-xs">
             <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
@@ -98,18 +133,20 @@ export const QualifiedLeadsModule: React.FC<QualifiedLeadsModuleProps> = ({ onNa
             const isPayloadExpanded = expandedPayloadId === lead.id;
             const isHistoryExpanded = expandedHistoryId === lead.id;
             const hasRecentMessages = lead.recent_messages && lead.recent_messages.length > 0;
+            const agenda = getSuggestedAgenda(lead.requested_service);
 
             return (
               <Card
                 key={lead.id}
                 hoverEffect
-                className="p-5 sm:p-6 space-y-4"
+                className="p-5 sm:p-6 space-y-4 shadow-card"
               >
+                {/* Header Row */}
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 sm:gap-4">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
-                      <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                      <h3 className="font-bold text-slate-900 text-base sm:text-lg">
                         {lead.company_name}
                       </h3>
                       <Badge variant="primary" size="xs">
@@ -120,18 +157,18 @@ export const QualifiedLeadsModule: React.FC<QualifiedLeadsModuleProps> = ({ onNa
                       </Badge>
                     </div>
                     <p className="text-xs text-slate-500">
-                      Primary Contact:{' '}
-                      <span className="text-slate-800 font-medium">
+                      Primary Decision Maker:{' '}
+                      <span className="text-slate-800 font-semibold">
                         {lead.contact_name || 'Managing Director'}
                       </span>{' '}
-                      • {lead.email} • {lead.phone}
+                      &bull; {lead.email} &bull; {lead.phone}
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <Badge variant="success" size="md">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mr-1" />
-                      Ready for Discovery Call
+                      Discovery Meeting Confirmed
                     </Badge>
 
                     {onNavigateToInbox && lead.conversation_id && (
@@ -151,7 +188,7 @@ export const QualifiedLeadsModule: React.FC<QualifiedLeadsModuleProps> = ({ onNa
                       onClick={() => setExpandedPayloadId(isPayloadExpanded ? null : lead.id)}
                       leftIcon={<FileCode2 className="w-3.5 h-3.5 text-slate-400" />}
                     >
-                      <span>{isPayloadExpanded ? 'Hide Payload' : 'CRM Payload'}</span>
+                      <span>{isPayloadExpanded ? 'Hide Payload' : 'Bitrix24 JSON'}</span>
                       {isPayloadExpanded ? (
                         <ChevronUp className="w-3 h-3 ml-1" />
                       ) : (
@@ -161,38 +198,105 @@ export const QualifiedLeadsModule: React.FC<QualifiedLeadsModuleProps> = ({ onNa
                   </div>
                 </div>
 
-                {/* Qualification Summary Card */}
+                {/* Meeting Interest & Coordination Banner */}
+                <div className="p-3.5 bg-gradient-to-r from-emerald-50/90 to-teal-50/80 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-950 shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <CalendarCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="font-bold block text-emerald-950 text-xs">
+                        Meeting Interest Confirmed (20-Min Introductory Zoom)
+                      </span>
+                      <p className="text-[11px] text-emerald-800 mt-0.5">
+                        Prospect requested discovery call with Senior Client Partner regarding {lead.requested_service || 'Statutory Compliance'}.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="px-2 py-1 rounded bg-white/90 border border-emerald-300 text-[10px] font-mono text-emerald-900 font-semibold">
+                      Proposed Slots: Thu 14:00 GMT / Fri 11:30 GMT
+                    </span>
+                  </div>
+                </div>
+
+                {/* Qualification Summary & Assigned Owner */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200/80">
                   <div>
-                    <span className="text-slate-400 block text-[11px] font-medium">Requested Service Line</span>
-                    <span className="font-semibold text-slate-900 mt-0.5 block">
+                    <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">
+                      Requested Service Line
+                    </span>
+                    <span className="font-bold text-slate-900 mt-0.5 block">
                       {lead.requested_service || 'Statutory Accounting & CRO Compliance'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px] font-medium">Assigned Lead Partner</span>
+                    <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">
+                      Assigned Lead Partner
+                    </span>
                     <span className="font-semibold text-slate-800 mt-0.5 block">
                       {lead.assigned_owner || 'Senior Partner (Dublin Practice)'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px] font-medium">Recommended Next Action</span>
+                    <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">
+                      Recommended Next Action
+                    </span>
                     <span className="font-bold text-blue-700 mt-0.5 block">
                       {lead.next_action || 'Schedule 15-minute discovery consultation'}
                     </span>
                   </div>
                 </div>
 
-                {lead.qualification_summary && (
-                  <div className="text-xs bg-emerald-50/70 p-3 rounded-xl border border-emerald-200/80 text-emerald-950 leading-relaxed shadow-2xs">
-                    <span className="font-bold text-emerald-900 block mb-0.5 text-[11px]">
-                      Qualification Assessment:
+                {/* Suggested Meeting Agenda & Readiness Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                  {/* Suggested Meeting Agenda */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-2xs">
+                    <span className="font-bold text-slate-800 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                      <ListChecks className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Suggested Discovery Meeting Agenda:</span>
                     </span>
-                    {lead.qualification_summary}
+                    <ul className="space-y-1.5 pt-1">
+                      {agenda.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-slate-700 text-[11px] leading-relaxed">
+                          <span className="w-4 h-4 rounded-full bg-blue-50 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[10px] border border-blue-200">
+                            {idx + 1}
+                          </span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                )}
 
-                {/* Expandable Conversation History */}
+                  {/* Handoff Readiness Checklist */}
+                  <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-2 shadow-2xs">
+                    <span className="font-bold text-slate-800 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Handoff Verification Checklist:</span>
+                    </span>
+                    <div className="grid grid-cols-1 gap-1.5 pt-1 text-[11px]">
+                      <div className="flex items-center gap-2 text-slate-700">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>High-Intent Decision Maker Identified &bull; {lead.contact_name || 'Managing Director'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-700">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Statutory Requirement Scoped &bull; {lead.requested_service}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-700">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Irish Practice Boundaries Enforced &bull; Zero avoidance schemes</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-700">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Bitrix24 JSON Schema Formatted &bull; <code className="font-mono text-blue-600">crm.lead.add</code> ready</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expandable Conversation Dialogue History */}
                 <div className="pt-2 border-t border-slate-100">
                   <button
                     onClick={() => setExpandedHistoryId(isHistoryExpanded ? null : lead.id)}
@@ -201,7 +305,7 @@ export const QualifiedLeadsModule: React.FC<QualifiedLeadsModuleProps> = ({ onNa
                     <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
                     <span>
                       {isHistoryExpanded
-                        ? 'Hide Conversation Turns'
+                        ? 'Hide Conversation Dialogue'
                         : `View Conversation History (${hasRecentMessages ? lead.recent_messages!.length : 0} Turns)`}
                     </span>
                     {isHistoryExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}

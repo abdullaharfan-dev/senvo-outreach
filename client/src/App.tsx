@@ -12,6 +12,7 @@ import KnowledgeModule from './components/KnowledgeModule';
 import IntegrationsModule from './components/IntegrationsModule';
 import SettingsModule from './components/SettingsModule';
 import SimulateInboundModal from './components/SimulateInboundModal';
+import ClientDemoTour from './components/ClientDemoTour';
 import { api } from './services/api';
 
 const DEMO_PARTNER_USER = {
@@ -37,6 +38,7 @@ export const App: React.FC = () => {
   const [activeModule, setActiveModule] = useState<ModuleType>('overview');
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [showSimulateModal, setShowSimulateModal] = useState<boolean>(false);
+  const [showDemoTour, setShowDemoTour] = useState<boolean>(false);
   const [targetConvId, setTargetConvId] = useState<string | null>(null);
 
   const [aiStatus, setAiStatus] = useState({
@@ -166,6 +168,7 @@ export const App: React.FC = () => {
           subtitle={subtitle}
           onRefresh={refreshCounts}
           onOpenTestTools={() => setShowSimulateModal(true)}
+          onStartTour={() => setShowDemoTour(true)}
           onLogout={handleLogout}
           onToggleMobileMenu={() => setMobileMenuOpen(true)}
           aiStatus={aiStatus}
@@ -230,6 +233,14 @@ export const App: React.FC = () => {
         isOpen={showSimulateModal}
         onClose={() => setShowSimulateModal(false)}
         onSuccess={handleSimulateSuccess}
+      />
+
+      {/* Interactive Client Demo Walkthrough Tour */}
+      <ClientDemoTour
+        isOpen={showDemoTour}
+        onClose={() => setShowDemoTour(false)}
+        onNavigate={(mod) => setActiveModule(mod as ModuleType)}
+        currentModule={activeModule}
       />
     </div>
   );

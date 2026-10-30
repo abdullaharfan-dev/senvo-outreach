@@ -7,9 +7,8 @@ import {
   LogOut,
   Menu,
   Database,
-  ShieldCheck
+  Compass
 } from 'lucide-react';
-import { api } from '../services/api';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 
@@ -18,6 +17,7 @@ interface HeaderProps {
   subtitle: string;
   onRefresh: () => void;
   onOpenTestTools?: () => void;
+  onStartTour?: () => void;
   onLogout?: () => void;
   onToggleMobileMenu?: () => void;
   aiStatus: {
@@ -32,11 +32,10 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle,
   onRefresh,
   onOpenTestTools,
+  onStartTour,
   onLogout,
   onToggleMobileMenu,
 }) => {
-  const [resetting, setResetting] = useState(false);
-  const [showConfirmReset, setShowConfirmReset] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleManualRefresh = async () => {
@@ -45,19 +44,6 @@ export const Header: React.FC<HeaderProps> = ({
       await onRefresh();
     } finally {
       setTimeout(() => setIsRefreshing(false), 500);
-    }
-  };
-
-  const handleReset = async () => {
-    try {
-      setResetting(true);
-      await api.resetDemo();
-      setShowConfirmReset(false);
-      onRefresh();
-    } catch (err: any) {
-      alert(`Reset failed: ${err.message}`);
-    } finally {
-      setResetting(false);
     }
   };
 
@@ -129,6 +115,19 @@ export const Header: React.FC<HeaderProps> = ({
           />
         </button>
 
+        {/* Product Tour Guide */}
+        {onStartTour && (
+          <button
+            onClick={onStartTour}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-blue-700 bg-blue-50/80 hover:bg-blue-100/90 border border-blue-200/90 hover:border-blue-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+            title="Start Interactive Guided Demo Tour"
+            aria-label="Start Guided Product Tour"
+          >
+            <Compass className="w-3.5 h-3.5 text-blue-600" />
+            <span className="hidden sm:inline">Product Tour</span>
+          </button>
+        )}
+
         {/* Internal Testing Drawer / Sandbox Access */}
         {onOpenTestTools && (
           <button
@@ -163,34 +162,6 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
       </div>
-
-      {/* Reset Confirmation Modal */}
-      {showConfirmReset && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-slate-200">
-            <div className="flex items-center gap-3 text-amber-600 mb-3">
-              <AlertCircle className="w-6 h-6 shrink-0" />
-              <h3 className="text-base font-bold text-slate-900">Reset Demo Database?</h3>
-            </div>
-            <p className="text-sm text-slate-600 mb-5 leading-relaxed">
-              This will re-initialize the persistent database with clean Ireland corporate leads, sample campaigns, active conversations across all 7 channels, and approved company knowledge.
-            </p>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" size="sm" onClick={() => setShowConfirmReset(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={handleReset}
-                isLoading={resetting}
-              >
-                Confirm Reset
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 };
