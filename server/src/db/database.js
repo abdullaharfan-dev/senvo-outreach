@@ -1,11 +1,16 @@
-import sqlite3 from 'sqlite3';
 import pg from 'pg';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const getDirname = () => {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return process.cwd();
+  }
+};
+const __dirname = getDirname();
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const isPostgres = Boolean(DATABASE_URL && (DATABASE_URL.startsWith('postgres://') || DATABASE_URL.startsWith('postgresql://')));
@@ -14,10 +19,10 @@ let sqliteDb = null;
 let pgPool = null;
 
 if (isPostgres) {
-  console.log('[DB] Connecting to managed cloud PostgreSQL database...');
+  console.log('[DB] Connecting to managed cloud PostgreSQL database (senvo_outreach schema)...');
   pgPool = new pg.Pool({
     connectionString: DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    ssl: { rejectUnauthorized: false },
     max: 10,
     idleTimeoutMillis: 30000,
   });
@@ -25,8 +30,21 @@ if (isPostgres) {
   pgPool.on('error', (err) => {
     console.error('[DB] Unexpected error on idle PostgreSQL client:', err);
   });
-} else {
-  // Persistent SQLite database path
+
+  // Strict isolation: ensure all queries run within senvo_outreach schema
+  pgPool.on('connect', async (client) => {
+    try {
+      await client.query('CREATE SCHEMA IF NOT EXISTS senvo_outreach;');
+      await client.query('SET search_path TO senvo_outreach;');
+    } catch (e) {
+      console.warn('[DB] Setting search_path to senvo_outreach warning:', e.message);
+    }
+  });
+}
+
+const getSqlite = async () => {
+  if (sqliteDb) return sqliteDb;
+  const { default: sqlite3Module } = await import('sqlite3');
   const dataDir = process.env.DATA_DIR || path.resolve(__dirname, '../../data');
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -35,19 +53,21 @@ if (isPostgres) {
   const dbPath = path.join(dataDir, 'senvo_outreach.db');
   console.log(`[DB] Using persistent SQLite database at: ${dbPath}`);
 
-  sqliteDb = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-      console.error('[DB] Failed to connect to SQLite:', err.message);
-    } else {
-      console.log('[DB] Connected successfully to SQLite database.');
-    }
+  return new Promise((resolve, reject) => {
+    const dbInstance = new sqlite3Module.Database(dbPath, (err) => {
+      if (err) {
+        console.error('[DB] Failed to connect to SQLite:', err.message);
+        reject(err);
+      } else {
+        console.log('[DB] Connected successfully to SQLite database.');
+        dbInstance.run('PRAGMA foreign_keys = ON;');
+        dbInstance.run('PRAGMA journal_mode = WAL;');
+        sqliteDb = dbInstance;
+        resolve(dbInstance);
+      }
+    });
   });
-
-  sqliteDb.serialize(() => {
-    sqliteDb.run('PRAGMA foreign_keys = ON;');
-    sqliteDb.run('PRAGMA journal_mode = WAL;');
-  });
-}
+};
 
 /**
  * Convert SQLite ? placeholders to PostgreSQL $1, $2, ...
@@ -66,8 +86,9 @@ export const query = async (sql, params = []) => {
     const result = await pgPool.query(pgSql, params);
     return result.rows;
   } else {
+    const db = await getSqlite();
     return new Promise((resolve, reject) => {
-      sqliteDb.all(sql, params, (err, rows) => {
+      db.all(sql, params, (err, rows) => {
         if (err) return reject(err);
         resolve(rows || []);
       });
@@ -84,8 +105,9 @@ export const get = async (sql, params = []) => {
     const result = await pgPool.query(pgSql, params);
     return result.rows[0];
   } else {
+    const db = await getSqlite();
     return new Promise((resolve, reject) => {
-      sqliteDb.get(sql, params, (err, row) => {
+      db.get(sql, params, (err, row) => {
         if (err) return reject(err);
         resolve(row);
       });
@@ -102,8 +124,9 @@ export const run = async (sql, params = []) => {
     const result = await pgPool.query(pgSql, params);
     return { changes: result.rowCount, lastID: null };
   } else {
+    const db = await getSqlite();
     return new Promise((resolve, reject) => {
-      sqliteDb.run(sql, params, function (err) {
+      db.run(sql, params, function (err) {
         if (err) return reject(err);
         resolve({ lastID: this.lastID, changes: this.changes });
       });
@@ -116,183 +139,206 @@ export const run = async (sql, params = []) => {
  */
 export const initDb = async () => {
   if (isPostgres) {
-    console.log('[DB] Initializing PostgreSQL schema...');
-    // Create tables in PostgreSQL syntax if not exist
-    await run(`
-      CREATE TABLE IF NOT EXISTS leads (
-        id VARCHAR(64) PRIMARY KEY,
-        company_name VARCHAR(255) NOT NULL,
-        contact_name VARCHAR(255),
-        phone VARCHAR(64),
-        email VARCHAR(255),
-        industry VARCHAR(128),
-        city VARCHAR(128) DEFAULT 'Dublin',
-        country VARCHAR(64) DEFAULT 'Ireland',
-        priority VARCHAR(32) DEFAULT 'medium',
-        score INT DEFAULT 50,
-        status VARCHAR(32) DEFAULT 'new',
-        created_at TIMESTAMPTZ NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL
-      );
+    console.log('[DB] Ensuring PostgreSQL schema senvo_outreach exists...');
+    await run(`CREATE SCHEMA IF NOT EXISTS senvo_outreach;`);
+    await run(`SET search_path TO senvo_outreach;`);
+
+    // Verify if leads table exists in senvo_outreach
+    const tableCheck = await query(`
+      SELECT table_name FROM information_schema.tables 
+      WHERE table_schema = 'senvo_outreach' AND table_name = 'leads'
     `);
-    await run(`
-      CREATE TABLE IF NOT EXISTS campaigns (
-        id VARCHAR(64) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        channel VARCHAR(64) NOT NULL,
-        status VARCHAR(32) DEFAULT 'draft',
-        template_id VARCHAR(64),
-        template_body TEXT,
-        target_audience VARCHAR(128),
-        total_recipients INT DEFAULT 0,
-        sent_count INT DEFAULT 0,
-        delivered_count INT DEFAULT 0,
-        replied_count INT DEFAULT 0,
-        qualified_count INT DEFAULT 0,
-        created_at TIMESTAMPTZ NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL
-      );
-    `);
-    await run(`
-      CREATE TABLE IF NOT EXISTS campaign_recipients (
-        id VARCHAR(64) PRIMARY KEY,
-        campaign_id VARCHAR(64) REFERENCES campaigns(id) ON DELETE CASCADE,
-        lead_id VARCHAR(64) REFERENCES leads(id) ON DELETE CASCADE,
-        status VARCHAR(32) DEFAULT 'queued',
-        delivery_mode VARCHAR(32) DEFAULT 'simulated',
-        personalized_content TEXT,
-        error_reason TEXT,
-        sent_at TIMESTAMPTZ,
-        delivered_at TIMESTAMPTZ,
-        replied_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ NOT NULL
-      );
-    `);
-    await run(`
-      CREATE TABLE IF NOT EXISTS conversations (
-        id VARCHAR(64) PRIMARY KEY,
-        lead_id VARCHAR(64) REFERENCES leads(id) ON DELETE CASCADE,
-        channel VARCHAR(64) NOT NULL,
-        status VARCHAR(32) DEFAULT 'open',
-        assigned_owner VARCHAR(128) DEFAULT 'Declan O''Sullivan',
-        last_message_at TIMESTAMPTZ NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL
-      );
-    `);
-    await run(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id VARCHAR(64) PRIMARY KEY,
-        conversation_id VARCHAR(64) REFERENCES conversations(id) ON DELETE CASCADE,
-        direction VARCHAR(16) NOT NULL,
-        sender_name VARCHAR(128),
-        content TEXT NOT NULL,
-        delivery_mode VARCHAR(32) DEFAULT 'simulated',
-        status VARCHAR(32) DEFAULT 'delivered',
-        is_ai_generated INT DEFAULT 0,
-        created_at TIMESTAMPTZ NOT NULL
-      );
-    `);
-    await run(`
-      CREATE TABLE IF NOT EXISTS ai_assessments (
-        id VARCHAR(64) PRIMARY KEY,
-        conversation_id VARCHAR(64) REFERENCES conversations(id) ON DELETE CASCADE,
-        message_id VARCHAR(64) REFERENCES messages(id) ON DELETE CASCADE,
-        lead_id VARCHAR(64) REFERENCES leads(id) ON DELETE CASCADE,
-        intent VARCHAR(64),
-        requested_service VARCHAR(128),
-        summary TEXT,
-        confidence NUMERIC DEFAULT 0.0,
-        suggested_reply TEXT,
-        suggested_next_action TEXT,
-        human_review_required INT DEFAULT 0,
-        review_status VARCHAR(32) DEFAULT 'approved',
-        raw_response TEXT,
-        created_at TIMESTAMPTZ NOT NULL
-      );
-    `);
-    await run(`
-      CREATE TABLE IF NOT EXISTS handoffs (
-        id VARCHAR(64) PRIMARY KEY,
-        lead_id VARCHAR(64) REFERENCES leads(id) ON DELETE CASCADE,
-        target_system VARCHAR(64) DEFAULT 'bitrix24',
-        handoff_status VARCHAR(32) DEFAULT 'staged',
-        assigned_to VARCHAR(128),
-        payload TEXT,
-        sync_attempts INT DEFAULT 0,
-        synced_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ NOT NULL
-      );
-    `);
-    await run(`
-      CREATE TABLE IF NOT EXISTS company_knowledge (
-        id VARCHAR(64) PRIMARY KEY,
-        category VARCHAR(64) NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        content TEXT NOT NULL,
-        approved INT DEFAULT 1,
-        updated_at TIMESTAMPTZ NOT NULL
-      );
-    `);
-    await run(`
-      CREATE TABLE IF NOT EXISTS integration_configs (
-        id VARCHAR(64) PRIMARY KEY,
-        channel VARCHAR(64) NOT NULL,
-        name VARCHAR(128) NOT NULL,
-        provider_mode VARCHAR(32) DEFAULT 'simulated',
-        is_connected INT DEFAULT 1,
-        capabilities TEXT,
-        last_heartbeat TIMESTAMPTZ
-      );
-    `);
-    await run(`
-      CREATE TABLE IF NOT EXISTS connected_accounts (
-        id VARCHAR(64) PRIMARY KEY,
-        channel VARCHAR(64) NOT NULL,
-        account_name VARCHAR(255) NOT NULL,
-        account_identifier VARCHAR(255) NOT NULL,
-        auth_type VARCHAR(64) DEFAULT 'oauth2',
-        connection_status VARCHAR(64) DEFAULT 'connected_simulated',
-        environment VARCHAR(64) DEFAULT 'sandbox_simulation',
-        permissions_granted TEXT DEFAULT '[]',
-        token_expires_at TIMESTAMPTZ,
-        rate_limit_info TEXT,
-        compliance_notes TEXT,
-        created_at TIMESTAMPTZ NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL
-      );
-    `);
-    await run(`
-      CREATE TABLE IF NOT EXISTS activity_events (
-        id VARCHAR(64) PRIMARY KEY,
-        actor VARCHAR(128) NOT NULL,
-        action VARCHAR(128) NOT NULL,
-        entity_type VARCHAR(64),
-        entity_id VARCHAR(64),
-        details TEXT,
-        created_at TIMESTAMPTZ NOT NULL
-      );
-    `);
-    console.log('[DB] PostgreSQL schema verified.');
+
+    if (tableCheck.length === 0) {
+      console.log('[DB] Initializing isolated tables in senvo_outreach schema...');
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.leads (
+          id TEXT PRIMARY KEY,
+          company_name TEXT NOT NULL,
+          contact_name TEXT,
+          email TEXT,
+          phone TEXT,
+          industry TEXT,
+          city TEXT,
+          source TEXT DEFAULT 'Manual / Import',
+          priority TEXT CHECK(priority IN ('high', 'medium', 'low')) DEFAULT 'medium',
+          score INTEGER DEFAULT 50,
+          owner TEXT DEFAULT 'Sales Team',
+          status TEXT CHECK(status IN ('uncontacted', 'in_campaign', 'replied', 'qualified', 'unqualified')) DEFAULT 'uncontacted',
+          custom_fields TEXT DEFAULT '{}',
+          created_at TIMESTAMPTZ NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL
+        );
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.campaigns (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          channel TEXT NOT NULL,
+          template_id TEXT,
+          template_body TEXT NOT NULL,
+          status TEXT CHECK(status IN ('draft', 'running', 'paused', 'completed')) DEFAULT 'draft',
+          target_audience TEXT DEFAULT 'All Eligible Leads',
+          total_recipients INTEGER DEFAULT 0,
+          sent_count INTEGER DEFAULT 0,
+          failed_count INTEGER DEFAULT 0,
+          skipped_count INTEGER DEFAULT 0,
+          replied_count INTEGER DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL
+        );
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.campaign_recipients (
+          id TEXT PRIMARY KEY,
+          campaign_id TEXT NOT NULL REFERENCES senvo_outreach.campaigns(id) ON DELETE CASCADE,
+          lead_id TEXT NOT NULL REFERENCES senvo_outreach.leads(id) ON DELETE CASCADE,
+          personalized_content TEXT NOT NULL,
+          status TEXT CHECK(status IN ('queued', 'simulated_sent', 'failed', 'skipped', 'replied')) DEFAULT 'queued',
+          error_message TEXT,
+          sent_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL,
+          CONSTRAINT uq_cr_campaign_lead UNIQUE(campaign_id, lead_id)
+        );
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.conversations (
+          id TEXT PRIMARY KEY,
+          lead_id TEXT NOT NULL REFERENCES senvo_outreach.leads(id) ON DELETE CASCADE,
+          channel TEXT NOT NULL,
+          status TEXT CHECK(status IN ('open', 'waiting_ai', 'review_needed', 'closed', 'handed_off')) DEFAULT 'open',
+          assigned_owner TEXT DEFAULT 'Declan O''Sullivan',
+          last_message_at TIMESTAMPTZ NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL
+        );
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.messages (
+          id TEXT PRIMARY KEY,
+          conversation_id TEXT NOT NULL REFERENCES senvo_outreach.conversations(id) ON DELETE CASCADE,
+          direction TEXT CHECK(direction IN ('inbound', 'outbound')) NOT NULL,
+          sender_name TEXT NOT NULL,
+          content TEXT NOT NULL,
+          delivery_mode TEXT CHECK(delivery_mode IN ('simulated', 'live')) DEFAULT 'simulated',
+          status TEXT CHECK(status IN ('delivered', 'read', 'pending_review', 'failed')) DEFAULT 'delivered',
+          is_ai_generated INTEGER DEFAULT 0,
+          metadata TEXT DEFAULT '{}',
+          created_at TIMESTAMPTZ NOT NULL
+        );
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.ai_assessments (
+          id TEXT PRIMARY KEY,
+          conversation_id TEXT NOT NULL REFERENCES senvo_outreach.conversations(id) ON DELETE CASCADE,
+          message_id TEXT,
+          lead_id TEXT NOT NULL REFERENCES senvo_outreach.leads(id) ON DELETE CASCADE,
+          intent TEXT NOT NULL,
+          requested_service TEXT,
+          summary TEXT NOT NULL,
+          confidence REAL DEFAULT 0.90,
+          suggested_reply TEXT,
+          suggested_next_action TEXT,
+          human_review_required INTEGER DEFAULT 0,
+          review_status TEXT CHECK(review_status IN ('pending', 'approved', 'rejected', 'modified')) DEFAULT 'pending',
+          raw_response TEXT,
+          created_at TIMESTAMPTZ NOT NULL
+        );
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.handoffs (
+          id TEXT PRIMARY KEY,
+          lead_id TEXT NOT NULL REFERENCES senvo_outreach.leads(id) ON DELETE CASCADE,
+          conversation_id TEXT,
+          requested_service TEXT,
+          qualification_summary TEXT NOT NULL,
+          assigned_owner TEXT NOT NULL,
+          next_action TEXT NOT NULL,
+          crm_target TEXT DEFAULT 'Bitrix24',
+          crm_sync_status TEXT CHECK(crm_sync_status IN ('prepared_pending_sync', 'sync_failed', 'synced')) DEFAULT 'prepared_pending_sync',
+          sync_details TEXT DEFAULT 'Payload formatted for Bitrix24 Lead REST API. Live sync disabled in demo mode.',
+          created_at TIMESTAMPTZ NOT NULL
+        );
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.company_knowledge (
+          id TEXT PRIMARY KEY,
+          category TEXT NOT NULL,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          approved INTEGER DEFAULT 1,
+          updated_at TIMESTAMPTZ NOT NULL
+        );
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.integration_configs (
+          id TEXT PRIMARY KEY,
+          channel TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          provider_mode TEXT CHECK(provider_mode IN ('simulated', 'live')) DEFAULT 'simulated',
+          is_connected INTEGER DEFAULT 1,
+          capabilities TEXT DEFAULT '[]',
+          last_heartbeat TIMESTAMPTZ NOT NULL
+        );
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.connected_accounts (
+          id TEXT PRIMARY KEY,
+          channel TEXT NOT NULL,
+          account_name TEXT NOT NULL,
+          account_identifier TEXT NOT NULL,
+          auth_type TEXT CHECK(auth_type IN ('oauth2', 'api_key', 'webhook', 'smtp_graph')) DEFAULT 'oauth2',
+          connection_status TEXT CHECK(connection_status IN ('connected_simulated', 'connected_live', 'disconnected', 'auth_required', 'error')) DEFAULT 'connected_simulated',
+          environment TEXT CHECK(environment IN ('sandbox_simulation', 'production')) DEFAULT 'sandbox_simulation',
+          permissions_granted TEXT DEFAULT '[]',
+          token_expires_at TIMESTAMPTZ,
+          rate_limit_info TEXT,
+          compliance_notes TEXT,
+          created_at TIMESTAMPTZ NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL
+        );
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS senvo_outreach.activity_events (
+          id TEXT PRIMARY KEY,
+          actor TEXT DEFAULT 'System',
+          action TEXT NOT NULL,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT,
+          details TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL
+        );
+      `);
+      console.log('[DB] senvo_outreach PostgreSQL tables created.');
+      await restoreFromSnapshot();
+    } else {
+      console.log('[DB] senvo_outreach schema verified and existing.');
+    }
   } else {
     const schemaPath = path.join(__dirname, 'schema.sql');
-    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-    const statements = schemaSql
-      .split(';')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
+    if (fs.existsSync(schemaPath)) {
+      const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+      const statements = schemaSql
+        .split(';')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
 
-    for (const statement of statements) {
-      await run(statement);
+      for (const statement of statements) {
+        await run(statement);
+      }
+      console.log('[DB] SQLite database schema initialized successfully.');
     }
-    console.log('[DB] SQLite database schema initialized successfully.');
   }
 
   // Check if database needs seeding from snapshot
-  const leadCheck = await query('SELECT COUNT(*) as count FROM leads');
-  const count = Number(leadCheck[0]?.count || 0);
-  if (count === 0) {
-    await restoreFromSnapshot();
+  try {
+    const leadCheck = await query('SELECT COUNT(*) as count FROM leads');
+    const count = Number(leadCheck[0]?.count || 0);
+    if (count === 0) {
+      await restoreFromSnapshot();
+    }
+  } catch (e) {
+    // Schema may be pending
   }
 };
 
@@ -302,7 +348,7 @@ export const initDb = async () => {
 export const restoreFromSnapshot = async () => {
   const snapshotPath = path.join(__dirname, 'seed_snapshot.json');
   if (!fs.existsSync(snapshotPath)) {
-    console.log('[Snapshot] No snapshot file found. Relying on default seed.');
+    console.log('[Snapshot] No snapshot file found.');
     return;
   }
 
@@ -334,12 +380,12 @@ export const restoreFromSnapshot = async () => {
 
         try {
           if (isPostgres) {
-            await run(`INSERT INTO ${table} (${colList}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`, values);
+            await run(`INSERT INTO senvo_outreach.${table} (${colList}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`, values);
           } else {
             await run(`INSERT OR IGNORE INTO ${table} (${colList}) VALUES (${placeholders})`, values);
           }
-        } catch (err) {
-          // Continue if any row fails
+        } catch {
+          // Continue
         }
       }
       console.log(`[Snapshot] Restored ${rows.length} rows into ${table}`);
