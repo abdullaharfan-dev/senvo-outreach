@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { query, get, run } from '../db/database.js';
 
 export const getQualifiedLeads = async () => {
-  return await query(`
+  const leads = await query(`
     SELECT l.*, 
       h.id as handoff_id,
       h.requested_service,
@@ -12,12 +12,33 @@ export const getQualifiedLeads = async () => {
       h.crm_target,
       h.crm_sync_status,
       h.sync_details,
-      h.created_at as handoff_created_at
+      h.created_at as handoff_created_at,
+      c.id as conversation_id,
+      c.channel as conversation_channel
     FROM leads l
     LEFT JOIN handoffs h ON l.id = h.lead_id
+    LEFT JOIN conversations c ON l.id = c.lead_id
     WHERE l.status = 'qualified' OR h.id IS NOT NULL
     ORDER BY l.updated_at DESC
   `);
+
+  // Attach recent conversation history for each qualified lead
+  for (const lead of leads) {
+    if (lead.conversation_id) {
+      const recentMsgs = await query(`
+        SELECT direction, sender_name, content, created_at, is_ai_generated
+        FROM messages
+        WHERE conversation_id = ?
+        ORDER BY created_at ASC
+        LIMIT 6
+      `, [lead.conversation_id]);
+      lead.recent_messages = recentMsgs;
+    } else {
+      lead.recent_messages = [];
+    }
+  }
+
+  return leads;
 };
 
 export const qualifyLead = async ({ leadId, requested_service, qualification_summary, assigned_owner, next_action }) => {
@@ -27,7 +48,7 @@ export const qualifyLead = async ({ leadId, requested_service, qualification_sum
   const now = new Date().toISOString();
   await run(`UPDATE leads SET status = 'qualified', updated_at = ? WHERE id = ?`, [now, leadId]);
 
-  // Check if handoff record exists
+  // Check if handoff record exists to avoid duplicate qualification records
   const existingHandoff = await get('SELECT id FROM handoffs WHERE lead_id = ?', [leadId]);
   let handoffId = existingHandoff?.id;
 
@@ -41,7 +62,7 @@ export const qualifyLead = async ({ leadId, requested_service, qualification_sum
         EMAIL: [{ VALUE: lead.email, VALUE_TYPE: 'WORK' }],
         PHONE: [{ VALUE: lead.phone, VALUE_TYPE: 'WORK' }],
         COMMENTS: qualification_summary,
-        ASSIGNED_BY_ID: assigned_owner,
+        ASSIGNED_BY_ID: assigned_owner || 'Senior Partner (Dublin Practice)',
         SOURCE_ID: 'SENVO_OUTREACH_AI',
         STATUS_ID: 'IN_PROCESS'
       }
@@ -56,9 +77,9 @@ export const qualifyLead = async ({ leadId, requested_service, qualification_sum
       [
         requested_service || 'Corporate Services',
         qualification_summary,
-        assigned_owner || 'Corporate Advisory Partner',
+        assigned_owner || 'Senior Partner (Dublin Practice)',
         next_action || 'Discovery consultation',
-        `Prepared Bitrix24 REST payload:\n${bitrixPayloadPreview}\n[SIMULATION BOUNDARY: Live CRM sync disabled for demo safety]`,
+        bitrixPayloadPreview,
         handoffId
       ]
     );
@@ -72,9 +93,9 @@ export const qualifyLead = async ({ leadId, requested_service, qualification_sum
         leadId,
         requested_service || 'Corporate Services',
         qualification_summary,
-        assigned_owner || 'Corporate Advisory Partner',
+        assigned_owner || 'Senior Partner (Dublin Practice)',
         next_action || 'Discovery consultation',
-        `Prepared Bitrix24 REST payload:\n${bitrixPayloadPreview}\n[SIMULATION BOUNDARY: Live CRM sync disabled for demo safety]`,
+        bitrixPayloadPreview,
         now
       ]
     );
@@ -82,11 +103,11 @@ export const qualifyLead = async ({ leadId, requested_service, qualification_sum
 
   await run(
     `INSERT INTO activity_events (id, actor, action, entity_type, entity_id, details, created_at)
-     VALUES (?, 'Sales Team', 'LEAD_QUALIFIED', 'handoff', ?, ?, ?)`,
-    [uuidv4(), handoffId, `Lead ${lead.company_name} qualified and staged for Bitrix24 handoff`, now]
+     VALUES (?, 'AI SDR', 'LEAD_QUALIFIED', 'lead', ?, ?, ?)`,
+    [uuidv4(), leadId, `Qualified prospect ${lead.company_name} for ${requested_service || 'Corporate Advisory'} - Staged for Bitrix24`, now]
   );
 
-  return await get('SELECT * FROM handoffs WHERE id = ?', [handoffId]);
+  return { success: true, handoffId, leadId, bitrixPayloadPreview };
 };
 
 export default { getQualifiedLeads, qualifyLead };

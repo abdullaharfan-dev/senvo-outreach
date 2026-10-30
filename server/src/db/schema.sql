@@ -140,6 +140,24 @@ CREATE TABLE IF NOT EXISTS integration_configs (
   last_heartbeat TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS connected_accounts (
+  id TEXT PRIMARY KEY,
+  channel TEXT NOT NULL,
+  account_name TEXT NOT NULL,
+  account_identifier TEXT NOT NULL,
+  auth_type TEXT CHECK(auth_type IN ('oauth2', 'api_key', 'webhook', 'smtp_graph')) DEFAULT 'oauth2',
+  connection_status TEXT CHECK(connection_status IN ('connected_simulated', 'connected_live', 'disconnected', 'auth_required', 'error')) DEFAULT 'connected_simulated',
+  environment TEXT CHECK(environment IN ('sandbox_simulation', 'production')) DEFAULT 'sandbox_simulation',
+  permissions_granted TEXT DEFAULT '[]',
+  token_expires_at TEXT,
+  rate_limit_info TEXT,
+  compliance_notes TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_connected_accounts_channel ON connected_accounts(channel);
+
 CREATE TABLE IF NOT EXISTS activity_events (
   id TEXT PRIMARY KEY,
   actor TEXT DEFAULT 'System',

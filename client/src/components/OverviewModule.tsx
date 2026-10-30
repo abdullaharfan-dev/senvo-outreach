@@ -14,14 +14,17 @@ import {
   Linkedin,
   Globe,
   Plus,
-  Building2
+  Building2,
+  AlertCircle,
+  Network,
+  Sparkles
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { OverviewMetrics } from '../types';
 import type { ModuleType } from './Sidebar';
 
 interface OverviewModuleProps {
-  onNavigate: (module: ModuleType) => void;
+  onNavigate: (module: ModuleType, conversationId?: string) => void;
 }
 
 export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate }) => {
@@ -56,7 +59,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate }) =>
     );
   }
 
-  const { summary, funnel, channel_breakdown, recent_activity } = metrics;
+  const { summary, funnel, channel_breakdown, recent_activity, attention_replies } = metrics;
 
   return (
     <div className="p-3.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:space-y-8 max-w-7xl mx-auto">
@@ -99,62 +102,183 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate }) =>
         </div>
       </div>
 
-      {/* Metric KPI Cards (Calculated directly from SQLite records) */}
+      {/* Actionable KPI Cards (Calculated directly from SQLite records) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4">
-        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-300 transition-all">
+        {/* Card 1: Total Leads */}
+        <div
+          onClick={() => onNavigate('leads')}
+          className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-500 hover:shadow-xs transition-all cursor-pointer group"
+          title="Click to view full Lead Directory"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
-            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate">Total Leads</span>
-            <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate group-hover:text-blue-600 transition-colors">
+              Total Leads
+            </span>
+            <Users className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
           </div>
           <p className="text-xl sm:text-2xl font-bold text-slate-900">{summary.total_leads}</p>
-          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">Directory registry</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate flex items-center gap-1">
+            <span>Directory registry</span>
+            <ArrowRight className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </p>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-300 transition-all">
+        {/* Card 2: In Outreach */}
+        <div
+          onClick={() => onNavigate('campaigns')}
+          className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-500 hover:shadow-xs transition-all cursor-pointer group"
+          title="Click to view Active Campaigns"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
-            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate">In Outreach</span>
+            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate group-hover:text-blue-600 transition-colors">
+              In Outreach
+            </span>
             <Send className="w-3.5 h-3.5 text-blue-500 shrink-0" />
           </div>
           <p className="text-xl sm:text-2xl font-bold text-blue-600">{summary.in_campaign}</p>
-          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">Staged in campaigns</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate flex items-center gap-1">
+            <span>Staged in campaigns</span>
+            <ArrowRight className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </p>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-300 transition-all">
+        {/* Card 3: Client Replies */}
+        <div
+          onClick={() => onNavigate('inbox')}
+          className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-500 hover:shadow-xs transition-all cursor-pointer group"
+          title="Click to open Unified Inbox"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
-            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate">Dispatched</span>
-            <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-          </div>
-          <p className="text-xl sm:text-2xl font-bold text-amber-600">{summary.simulated_sent}</p>
-          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">{summary.queued} queued in DB</p>
-        </div>
-
-        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-300 transition-all">
-          <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
-            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate">Client Replies</span>
+            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate group-hover:text-cyan-600 transition-colors">
+              Client Replies
+            </span>
             <MessageSquare className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
           </div>
           <p className="text-xl sm:text-2xl font-bold text-cyan-600">{summary.inbound_replies}</p>
-          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">Triaged in Inbox</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate flex items-center gap-1">
+            <span>Triaged in Inbox</span>
+            <ArrowRight className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </p>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-300 transition-all">
+        {/* Card 4: Qualified Leads */}
+        <div
+          onClick={() => onNavigate('qualified')}
+          className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-emerald-500 hover:shadow-xs transition-all cursor-pointer group"
+          title="Click to view Qualified Leads"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
-            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate">Qualified</span>
+            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate group-hover:text-emerald-600 transition-colors">
+              Qualified
+            </span>
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
           </div>
           <p className="text-xl sm:text-2xl font-bold text-emerald-600">{summary.qualified_leads}</p>
-          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">Intent verified</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate flex items-center gap-1">
+            <span>Discovery ready</span>
+            <ArrowRight className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </p>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-300 transition-all">
-          <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
-            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate">CRM Staging</span>
-            <Award className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+        {/* Card 5: Attention / Reviews Needed */}
+        <div
+          onClick={() => onNavigate('inbox')}
+          className={`p-3.5 sm:p-4 rounded-xl border shadow-2xs transition-all cursor-pointer group ${
+            (summary.reviews_needed || 0) > 0
+              ? 'bg-amber-50/60 border-amber-300 hover:border-amber-500'
+              : 'bg-white border-slate-200 hover:border-blue-500'
+          }`}
+          title="Click to view threads requiring attention"
+        >
+          <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate text-amber-700">
+              Needs Review
+            </span>
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
           </div>
-          <p className="text-xl sm:text-2xl font-bold text-indigo-600">{summary.staged_handoffs}</p>
-          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">Staged for Bitrix24</p>
+          <p className="text-xl sm:text-2xl font-bold text-amber-700">{summary.reviews_needed || 0}</p>
+          <p className="text-[10px] sm:text-[11px] text-amber-600 mt-0.5 truncate flex items-center gap-1">
+            <span>Awaiting action</span>
+            <ArrowRight className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </p>
+        </div>
+
+        {/* Card 6: Connected Accounts */}
+        <div
+          onClick={() => onNavigate('integrations')}
+          className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-indigo-500 hover:shadow-xs transition-all cursor-pointer group"
+          title="Click to view Connected Accounts"
+        >
+          <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider truncate group-hover:text-indigo-600 transition-colors">
+              Channels
+            </span>
+            <Network className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+          </div>
+          <p className="text-xl sm:text-2xl font-bold text-indigo-600">{summary.connected_channels || 7}</p>
+          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate flex items-center gap-1">
+            <span>Active accounts</span>
+            <ArrowRight className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </p>
         </div>
       </div>
+
+      {/* Immediate Attention & Inbound Responses (Actionable Highlights) */}
+      {attention_replies && attention_replies.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-2xs space-y-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+              <h3 className="font-bold text-slate-900 text-xs sm:text-sm">Priority Client Inquiries & Active Threads</h3>
+            </div>
+            <button
+              onClick={() => onNavigate('inbox')}
+              className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer"
+            >
+              <span>View All in Inbox</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+
+          <div className="divide-y divide-slate-100 overflow-hidden">
+            {attention_replies.slice(0, 4).map((reply) => (
+              <div
+                key={reply.conversation_id}
+                onClick={() => onNavigate('inbox', reply.conversation_id)}
+                className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-slate-50/80 -mx-2 px-2 rounded-lg cursor-pointer transition-colors"
+              >
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 text-xs truncate">{reply.company_name}</span>
+                    <span className="text-[10px] text-slate-400 font-medium truncate">• {reply.contact_name}</span>
+                    <span className="text-[9px] font-semibold uppercase px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
+                      {reply.channel}
+                    </span>
+                    {reply.intent && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 capitalize">
+                        {reply.intent.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600 truncate max-w-xl italic">
+                    "{reply.latest_inbound || 'Awaiting incoming turn...'}"
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-slate-400">
+                    {new Date(reply.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className="text-xs px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg font-semibold flex items-center gap-1">
+                    <span>Respond</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Funnel & Channels Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -207,9 +331,12 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate }) =>
           <div>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-slate-900 text-xs sm:text-sm">Inquiry Channel Coverage</h3>
-              <span className="text-[10px] sm:text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                7 Channels
-              </span>
+              <button
+                onClick={() => onNavigate('integrations')}
+                className="text-[10px] sm:text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 cursor-pointer"
+              >
+                Manage Accounts
+              </button>
             </div>
             <p className="text-[11px] text-slate-500 mb-3 sm:mb-4">
               Active conversation threads across each supported medium:

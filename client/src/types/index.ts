@@ -176,6 +176,15 @@ export interface QualifiedLead extends Lead {
   crm_sync_status?: 'prepared_pending_sync' | 'sync_failed' | 'synced';
   sync_details?: string;
   handoff_created_at?: string;
+  conversation_id?: string;
+  conversation_channel?: string;
+  recent_messages?: Array<{
+    direction: 'inbound' | 'outbound';
+    sender_name: string;
+    content: string;
+    created_at: string;
+    is_ai_generated: number;
+  }>;
 }
 
 export interface OverviewMetrics {
@@ -189,6 +198,10 @@ export interface OverviewMetrics {
     staged_handoffs: number;
     active_campaigns: number;
     total_conversations: number;
+    reviews_needed?: number;
+    waiting_ai?: number;
+    interested_leads?: number;
+    connected_channels?: number;
   };
   funnel: Array<{
     stage: string;
@@ -212,6 +225,34 @@ export interface OverviewMetrics {
     details: string;
     created_at: string;
   }>;
+  attention_replies?: Array<{
+    conversation_id: string;
+    channel: string;
+    conversation_status: string;
+    last_message_at: string;
+    company_name: string;
+    contact_name: string;
+    city: string;
+    priority: string;
+    latest_inbound: string;
+    intent: string;
+  }>;
+}
+
+export interface ConnectedAccount {
+  id: string;
+  channel: ChannelType;
+  account_name: string;
+  account_identifier: string;
+  auth_type: 'oauth2' | 'api_key' | 'webhook' | 'smtp_graph';
+  connection_status: 'connected_simulated' | 'connected_live' | 'disconnected' | 'auth_required' | 'error';
+  environment: 'sandbox_simulation' | 'production';
+  permissions_granted: string[];
+  token_expires_at?: string | null;
+  rate_limit_info?: string;
+  compliance_notes?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface KnowledgeItem {

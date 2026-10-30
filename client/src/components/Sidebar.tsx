@@ -60,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { id: 'analytics' as ModuleType, label: 'Analytics', icon: BarChart3 },
     { id: 'knowledge' as ModuleType, label: 'Company Knowledge', icon: BookOpen },
-    { id: 'integrations' as ModuleType, label: 'Integrations', icon: Network },
+    { id: 'integrations' as ModuleType, label: 'Connected Accounts', icon: Network },
     { id: 'settings' as ModuleType, label: 'Settings', icon: Settings },
   ];
 

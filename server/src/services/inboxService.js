@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { query, get, run } from '../db/database.js';
 import { assessIncomingMessage } from './aiService.js';
+import { qualifyLead } from './qualificationService.js';
 
 export const getConversations = async ({ channel = '', status = '', search = '' } = {}) => {
   let sql = `
@@ -97,9 +98,9 @@ export const sendMessage = async (conversationId, { content, is_ai_generated = f
 
 /**
  * Controllable simulation of incoming reply from a prospect
- * Triggers the Gemini AI assessment pipeline
+ * Triggers the Gemini AI assessment pipeline and autonomous response workflow
  */
-export const simulateIncomingReply = async ({ conversationId, leadId, channel, content, senderName }) => {
+export const simulateIncomingReply = async ({ conversationId, leadId, channel, content, senderName, auto_respond = true }) => {
   const now = new Date().toISOString();
   let convId = conversationId;
 
@@ -138,7 +139,7 @@ export const simulateIncomingReply = async ({ conversationId, leadId, channel, c
   // Update conversation status to waiting_ai
   await run(`UPDATE conversations SET last_message_at = ?, status = 'waiting_ai', updated_at = ? WHERE id = ?`, [now, now, convId]);
 
-  // 2. Fetch recent conversation messages for minimized context
+  // 2. Fetch recent conversation messages for context
   const recentMessages = await query('SELECT direction, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 10', [convId]);
 
   // 3. Call genuine Gemini AI service
@@ -149,13 +150,16 @@ export const simulateIncomingReply = async ({ conversationId, leadId, channel, c
   });
 
   let assessmentId = null;
+  let autoReplyMessage = null;
+  let autoQualified = false;
+
   if (aiResult.success) {
     assessmentId = uuidv4();
     const assessment = aiResult.data;
 
     await run(
       `INSERT INTO ai_assessments (id, conversation_id, message_id, lead_id, intent, requested_service, summary, confidence, suggested_reply, suggested_next_action, human_review_required, review_status, raw_response, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?)`,
       [
         assessmentId,
         convId,
@@ -173,9 +177,59 @@ export const simulateIncomingReply = async ({ conversationId, leadId, channel, c
       ]
     );
 
-    // Update conversation status based on review requirement
-    const newStatus = assessment.human_review_required ? 'review_needed' : 'open';
-    await run(`UPDATE conversations SET status = ?, updated_at = ? WHERE id = ?`, [newStatus, now, convId]);
+    // Autonomous Mode: Automatically dispatch response in simulated environment
+    if (auto_respond && assessment.suggested_reply) {
+      const autoMsgId = uuidv4();
+      const autoTime = new Date().toISOString();
+
+      await run(
+        `INSERT INTO messages (id, conversation_id, direction, sender_name, content, delivery_mode, status, is_ai_generated, created_at)
+         VALUES (?, ?, 'outbound', 'SENVO AI Client Advisory', ?, 'simulated', 'delivered', 1, ?)`,
+        [autoMsgId, convId, assessment.suggested_reply, autoTime]
+      );
+
+      autoReplyMessage = {
+        id: autoMsgId,
+        conversation_id: convId,
+        direction: 'outbound',
+        sender_name: 'SENVO AI Client Advisory',
+        content: assessment.suggested_reply,
+        delivery_mode: 'simulated',
+        status: 'delivered',
+        is_ai_generated: 1,
+        created_at: autoTime,
+      };
+
+      // Check if prospect showed meeting/consultation interest -> Auto-Qualify
+      const isMeetingInterest =
+        assessment.intent === 'demo_request' ||
+        assessment.intent === 'interested' ||
+        /meeting|consultation|call|demo|schedule|zoom|introductory|times/i.test(content);
+
+      if (isMeetingInterest) {
+        await qualifyLead({
+          leadId: conv.lead_id,
+          requested_service: assessment.requested_service || 'Statutory Compliance & Advisory',
+          qualification_summary: assessment.summary || 'Inbound prospect demonstrated meeting/consultation interest.',
+          assigned_owner: 'Senior Client Partner (Dublin Practice)',
+          next_action: assessment.suggested_next_action || 'Schedule discovery consultation call',
+        });
+        autoQualified = true;
+        await run(`UPDATE conversations SET status = 'handed_off', updated_at = ? WHERE id = ?`, [autoTime, convId]);
+      } else {
+        await run(`UPDATE conversations SET status = 'open', updated_at = ? WHERE id = ?`, [autoTime, convId]);
+      }
+
+      await run(
+        `INSERT INTO activity_events (id, actor, action, entity_type, entity_id, details, created_at)
+         VALUES (?, 'AI SDR', 'AUTONOMOUS_REPLY_DISPATCHED', 'message', ?, ?, ?)`,
+        [uuidv4(), autoMsgId, `Autonomous AI SDR auto-responded to ${conv.company_name} on ${conv.channel} (simulated)`, autoTime]
+      );
+    } else {
+      // In review/copilot mode
+      const newStatus = assessment.human_review_required ? 'review_needed' : 'open';
+      await run(`UPDATE conversations SET status = ?, updated_at = ? WHERE id = ?`, [newStatus, now, convId]);
+    }
 
     await run(
       `INSERT INTO activity_events (id, actor, action, entity_type, entity_id, details, created_at)
@@ -183,7 +237,7 @@ export const simulateIncomingReply = async ({ conversationId, leadId, channel, c
       [uuidv4(), assessmentId, `Assessed intent '${assessment.intent}' with ${(assessment.confidence * 100).toFixed(0)}% confidence for ${conv.company_name}`, now]
     );
   } else {
-    // Honest AI error handling
+    // Honest AI error handling (e.g. Gemini 429 quota exhausted)
     await run(`UPDATE conversations SET status = 'review_needed', updated_at = ? WHERE id = ?`, [now, convId]);
     await run(
       `INSERT INTO activity_events (id, actor, action, entity_type, entity_id, details, created_at)
@@ -195,7 +249,67 @@ export const simulateIncomingReply = async ({ conversationId, leadId, channel, c
   return {
     conversation: await getConversationDetails(convId),
     ai_result: aiResult,
+    auto_responded: Boolean(autoReplyMessage),
+    auto_reply_message: autoReplyMessage,
+    auto_qualified: autoQualified,
   };
 };
 
-export default { getConversations, getConversationDetails, sendMessage, simulateIncomingReply };
+export const reassessConversation = async (convId) => {
+  const conv = await get(
+    'SELECT c.*, l.company_name, l.industry, l.city FROM conversations c JOIN leads l ON c.lead_id = l.id WHERE c.id = ?',
+    [convId]
+  );
+  if (!conv) throw new Error('Conversation or lead not found');
+
+  const latestInbound = await get(
+    "SELECT * FROM messages WHERE conversation_id = ? AND direction = 'inbound' ORDER BY created_at DESC LIMIT 1",
+    [convId]
+  );
+  if (!latestInbound) {
+    throw new Error('No inbound message found to assess');
+  }
+
+  const recentMessages = await query(
+    'SELECT direction, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 10',
+    [convId]
+  );
+
+  const aiResult = await assessIncomingMessage({
+    lead: { company_name: conv.company_name, industry: conv.industry, city: conv.city },
+    recentMessages,
+    incomingMessage: latestInbound.content,
+  });
+
+  if (aiResult.success) {
+    const assessmentId = uuidv4();
+    const assessment = aiResult.data;
+    const now = new Date().toISOString();
+
+    await run(
+      `INSERT INTO ai_assessments (id, conversation_id, message_id, lead_id, intent, requested_service, summary, confidence, suggested_reply, suggested_next_action, human_review_required, review_status, raw_response, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending', ?, ?)`,
+      [
+        assessmentId,
+        convId,
+        latestInbound.id,
+        conv.lead_id,
+        assessment.intent,
+        assessment.requested_service,
+        assessment.summary,
+        assessment.confidence,
+        assessment.suggested_reply,
+        assessment.suggested_next_action,
+        assessment.raw_response,
+        now,
+      ]
+    );
+
+    const updatedConv = await getConversationDetails(convId);
+    return { success: true, assessment, conversation: updatedConv };
+  } else {
+    return { success: false, error: aiResult.error };
+  }
+};
+
+export default { getConversations, getConversationDetails, sendMessage, simulateIncomingReply, reassessConversation };

@@ -8,7 +8,8 @@ import inboxService from '../services/inboxService.js';
 import qualificationService from '../services/qualificationService.js';
 import analyticsService from '../services/analyticsService.js';
 import { checkAiHealth } from '../services/aiService.js';
-import { query, run } from '../db/database.js';
+import { query, run, get } from '../db/database.js';
+import { v4 as uuidv4 } from 'uuid';
 import { seedData } from '../db/seed.js';
 
 const router = express.Router();
@@ -304,10 +305,115 @@ router.post('/inbox/conversations/:id/messages', async (req, res) => {
 // Controllable incoming simulation endpoint
 router.post('/inbox/simulate-incoming', async (req, res) => {
   try {
-    const { conversationId, leadId, channel, content, senderName } = req.body;
+    const { conversationId, leadId, channel, content, senderName, auto_respond } = req.body;
     if (!content) return res.status(400).json({ error: 'Content required' });
-    const result = await inboxService.simulateIncomingReply({ conversationId, leadId, channel, content, senderName });
+    const result = await inboxService.simulateIncomingReply({
+      conversationId,
+      leadId,
+      channel,
+      content,
+      senderName,
+      auto_respond: auto_respond !== false
+    });
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Re-assess conversation with Gemini AI Copilot
+router.post('/inbox/conversations/:id/re-assess', async (req, res) => {
+  try {
+    const result = await inboxService.reassessConversation(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Connected Accounts & Channels ---
+router.get('/accounts', async (req, res) => {
+  try {
+    const accounts = await query('SELECT * FROM connected_accounts ORDER BY channel, created_at ASC');
+    res.json(accounts.map(a => ({
+      ...a,
+      permissions_granted: JSON.parse(a.permissions_granted || '[]')
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/accounts', async (req, res) => {
+  try {
+    const { channel, account_name, account_identifier, auth_type, environment, permissions_granted, compliance_notes } = req.body;
+    if (!channel || !account_name || !account_identifier) {
+      return res.status(400).json({ error: 'channel, account_name, and account_identifier are required' });
+    }
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    const status = environment === 'production' ? 'auth_required' : 'connected_simulated';
+    await run(
+      `INSERT INTO connected_accounts (id, channel, account_name, account_identifier, auth_type, connection_status, environment, permissions_granted, token_expires_at, rate_limit_info, compliance_notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        channel,
+        account_name,
+        account_identifier,
+        auth_type || 'oauth2',
+        status,
+        environment || 'sandbox_simulation',
+        JSON.stringify(permissions_granted || []),
+        new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+        'Sandbox simulation limits active (max 100/day)',
+        compliance_notes || 'Interactive simulated channel connection for client demo.',
+        now,
+        now
+      ]
+    );
+    const created = await get('SELECT * FROM connected_accounts WHERE id = ?', [id]);
+    res.status(201).json({ ...created, permissions_granted: JSON.parse(created.permissions_granted || '[]') });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/accounts/:id/test', async (req, res) => {
+  try {
+    const account = await get('SELECT * FROM connected_accounts WHERE id = ?', [req.params.id]);
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+    res.json({
+      success: true,
+      account_id: account.id,
+      channel: account.channel,
+      status: 'healthy',
+      latency_ms: Math.floor(45 + Math.random() * 80),
+      tested_at: new Date().toISOString(),
+      message: `Connection test passed for ${account.account_name} on ${account.channel}. Sandbox adapter healthy.`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/accounts/:id/disconnect', async (req, res) => {
+  try {
+    const now = new Date().toISOString();
+    await run("UPDATE connected_accounts SET connection_status = 'disconnected', updated_at = ? WHERE id = ?", [now, req.params.id]);
+    const updated = await get('SELECT * FROM connected_accounts WHERE id = ?', [req.params.id]);
+    res.json({ ...updated, permissions_granted: JSON.parse(updated.permissions_granted || '[]') });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/accounts/:id/reconnect', async (req, res) => {
+  try {
+    const now = new Date().toISOString();
+    await run("UPDATE connected_accounts SET connection_status = 'connected_simulated', updated_at = ? WHERE id = ?", [now, req.params.id]);
+    const updated = await get('SELECT * FROM connected_accounts WHERE id = ?', [req.params.id]);
+    res.json({ ...updated, permissions_granted: JSON.parse(updated.permissions_granted || '[]') });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -9,6 +9,7 @@ import type {
   QualifiedLead,
   KnowledgeItem,
   IntegrationConfig,
+  ConnectedAccount,
   ChannelType
 } from '../types';
 
@@ -168,6 +169,7 @@ export const api = {
     channel?: string;
     content: string;
     senderName?: string;
+    auto_respond?: boolean;
   }) => {
     const res = await fetch(`${API_BASE}/inbox/simulate-incoming`, {
       method: 'POST',
@@ -178,7 +180,68 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to simulate incoming message');
     }
-    return res.json() as Promise<{ conversation: Conversation; ai_result: any }>;
+    return res.json() as Promise<{
+      conversation: Conversation;
+      ai_result: any;
+      auto_responded?: boolean;
+      auto_reply_message?: any;
+      auto_qualified?: boolean;
+    }>;
+  },
+
+  reassessConversation: async (conversationId: string) => {
+    const res = await fetch(`${API_BASE}/inbox/conversations/${conversationId}/re-assess`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to re-assess conversation');
+    }
+    return res.json() as Promise<{
+      success: boolean;
+      assessment?: any;
+      conversation?: Conversation;
+      error?: string;
+    }>;
+  },
+
+  // Connected Accounts
+  getAccounts: async (): Promise<ConnectedAccount[]> => {
+    const res = await fetch(`${API_BASE}/accounts`);
+    if (!res.ok) throw new Error('Failed to fetch connected accounts');
+    return res.json();
+  },
+
+  createAccount: async (data: Partial<ConnectedAccount>): Promise<ConnectedAccount> => {
+    const res = await fetch(`${API_BASE}/accounts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to create account');
+    }
+    return res.json();
+  },
+
+  testAccount: async (id: string): Promise<{ success: boolean; status: string; latency_ms: number; message: string }> => {
+    const res = await fetch(`${API_BASE}/accounts/${id}/test`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to test account connection');
+    return res.json();
+  },
+
+  disconnectAccount: async (id: string): Promise<ConnectedAccount> => {
+    const res = await fetch(`${API_BASE}/accounts/${id}/disconnect`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to disconnect account');
+    return res.json();
+  },
+
+  reconnectAccount: async (id: string): Promise<ConnectedAccount> => {
+    const res = await fetch(`${API_BASE}/accounts/${id}/reconnect`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to reconnect account');
+    return res.json();
   },
 
   // Qualified Leads

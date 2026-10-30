@@ -124,8 +124,8 @@ export const App: React.FC = () => {
         };
       case 'integrations':
         return {
-          title: 'Channel Adapters & CRM Gateway',
-          subtitle: 'Enterprise communication adapters across 7 channels and Bitrix24 REST integration',
+          title: 'Connected Accounts & Channel Setup',
+          subtitle: 'Enterprise communication accounts across 7 channels with sandbox simulation and Bitrix24 gateway',
         };
       case 'settings':
         return {
@@ -169,7 +169,10 @@ export const App: React.FC = () => {
         <main className={`flex-1 ${activeModule === 'inbox' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'} bg-slate-50`}>
           {activeModule === 'overview' && (
             <OverviewModule
-              onNavigate={(mod) => setActiveModule(mod)}
+              onNavigate={(mod, convId) => {
+                if (convId) setTargetConvId(convId);
+                setActiveModule(mod);
+              }}
             />
           )}
 
@@ -192,7 +195,14 @@ export const App: React.FC = () => {
             />
           )}
 
-          {activeModule === 'qualified' && <QualifiedLeadsModule />}
+          {activeModule === 'qualified' && (
+            <QualifiedLeadsModule
+              onNavigateToInbox={(convId) => {
+                if (convId) setTargetConvId(convId);
+                setActiveModule('inbox');
+              }}
+            />
+          )}
 
           {activeModule === 'analytics' && <AnalyticsModule />}
 
