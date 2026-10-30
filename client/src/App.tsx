@@ -148,7 +148,7 @@ export const App: React.FC = () => {
   const { title, subtitle } = getModuleTitle();
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans">
       {/* Persistent Dark-Navy Sidebar (Desktop) + Mobile Drawer */}
       <Sidebar
         activeModule={activeModule}

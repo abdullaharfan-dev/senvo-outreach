@@ -3,13 +3,15 @@ import {
   RefreshCw,
   Building2,
   AlertCircle,
-  CheckCircle2,
-  User,
   FlaskConical,
   LogOut,
-  Menu
+  Menu,
+  Database,
+  ShieldCheck
 } from 'lucide-react';
 import { api } from '../services/api';
+import { Badge } from './ui/Badge';
+import { Button } from './ui/Button';
 
 interface HeaderProps {
   title: string;
@@ -35,6 +37,16 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [resetting, setResetting] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
 
   const handleReset = async () => {
     try {
@@ -50,9 +62,9 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="h-14 sm:h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between shrink-0 shadow-2xs">
+    <header className="h-14 sm:h-16 bg-white/95 backdrop-blur-xs border-b border-slate-200/90 px-3 sm:px-6 flex items-center justify-between shrink-0 shadow-2xs z-20 sticky top-0">
       {/* Left: Mobile Menu Toggle & Title */}
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center gap-2.5 min-w-0">
         {onToggleMobileMenu && (
           <button
             onClick={onToggleMobileMenu}
@@ -65,76 +77,86 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         <div className="min-w-0">
-          <h1 className="text-xs sm:text-base font-bold text-slate-900 tracking-tight truncate max-w-[150px] xs:max-w-[220px] sm:max-w-none">
-            {title}
-          </h1>
-          <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate max-w-[150px] xs:max-w-[240px] sm:max-w-none hidden xs:block">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xs sm:text-base font-bold text-slate-900 tracking-tight truncate max-w-[150px] xs:max-w-[220px] sm:max-w-none">
+              {title}
+            </h1>
+            <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/70 uppercase">
+              Production Staging
+            </span>
+          </div>
+          <p className="text-[10px] sm:text-xs text-slate-500 font-normal truncate max-w-[150px] xs:max-w-[240px] sm:max-w-none hidden xs:block">
             {subtitle}
           </p>
         </div>
       </div>
 
-      {/* Right Controls - Responsive */}
-      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+      {/* Right Controls - Responsive & Polished */}
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         {/* Client Demo Environment Indicator */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-[11px] font-bold text-blue-800 shadow-2xs">
-          <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-          <span className="hidden xs:inline">CLIENT DEMO</span>
-          <span className="xs:hidden">DEMO</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50/90 border border-blue-200/80 text-[11px] font-bold text-blue-800 shadow-2xs">
+          <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shrink-0" />
+          <span className="hidden sm:inline">CLIENT DEMO</span>
+          <span className="sm:hidden">DEMO</span>
         </div>
 
-        {/* Workspace Location Indicator */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700">
-          <Building2 className="w-3.5 h-3.5 text-blue-600" />
-          <span className="font-semibold text-slate-800">Ireland Practice</span>
-          <span className="text-slate-400">•</span>
-          <span className="text-slate-500">Dublin HQ</span>
+        {/* Database Cloud Active Indicator */}
+        <div
+          className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/80 border border-emerald-200/80 text-[11px] font-medium text-emerald-800"
+          title="Connected to Supabase PostgreSQL dedicated schema: senvo_outreach"
+        >
+          <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <span className="font-semibold text-emerald-900">Supabase Cloud</span>
+          <span className="text-emerald-400">•</span>
+          <span className="text-[10px] font-mono text-emerald-700">senvo_outreach</span>
         </div>
 
-        {/* Operational Status */}
-        <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-800" title="System Operational">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-          <span className="font-medium text-[11px] hidden sm:inline">Online</span>
+        {/* Practice Region */}
+        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/80 text-xs text-slate-700">
+          <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+          <span className="font-semibold text-slate-800">Ireland HQ</span>
         </div>
 
-        {/* Refresh Data */}
+        {/* Refresh Live Data */}
         <button
-          onClick={onRefresh}
-          className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-          title="Refresh live data from database"
+          onClick={handleManualRefresh}
+          className="p-1.5 sm:p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+          title="Refresh live metrics from cloud database"
           aria-label="Refresh live data"
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw
+            className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`}
+          />
         </button>
 
-        {/* Internal Testing Drawer / Sandbox Access (discreet) */}
+        {/* Internal Testing Drawer / Sandbox Access */}
         {onOpenTestTools && (
           <button
             onClick={onOpenTestTools}
-            className="flex items-center gap-1.5 px-2 py-1.5 text-slate-500 hover:text-blue-700 hover:bg-blue-50 border border-slate-200 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50/80 border border-slate-200 hover:border-blue-200 rounded-lg text-xs font-medium transition-colors cursor-pointer"
             title="Internal Scenario Testing & Simulation Tools"
             aria-label="Testing Tools"
           >
-            <FlaskConical className="w-3.5 h-3.5 text-slate-400" />
-            <span className="hidden md:inline text-[11px]">Test Tools</span>
+            <FlaskConical className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+            <span className="hidden md:inline text-[11px]">Test Simulator</span>
           </button>
         )}
 
-        {/* User Account / Profile */}
-        <div className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-2 border-l border-slate-200">
-          <div className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-semibold shrink-0">
+        {/* User Account / Partner Profile */}
+        <div className="flex items-center gap-1.5 sm:gap-2 pl-1 sm:pl-2 border-l border-slate-200">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold shrink-0 ring-1 ring-slate-800/10 shadow-2xs">
             DO
           </div>
           <div className="hidden xl:block text-left">
             <p className="text-xs font-semibold text-slate-800 leading-tight">Declan O'Sullivan</p>
-            <p className="text-[10px] text-slate-400 leading-tight">Client Services Lead</p>
+            <p className="text-[10px] text-slate-400 leading-tight">Partner & Client Services Lead</p>
           </div>
           {onLogout && (
             <button
               onClick={onLogout}
               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-              title="Sign Out of Demo Workspace"
-              aria-label="Sign Out"
+              title="Reset Demo Session"
+              aria-label="Reset Demo Session"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
@@ -154,19 +176,17 @@ export const Header: React.FC<HeaderProps> = ({
               This will re-initialize the persistent database with clean Ireland corporate leads, sample campaigns, active conversations across all 7 channels, and approved company knowledge.
             </p>
             <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowConfirmReset(false)}
-                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
-              >
+              <Button variant="outline" size="sm" onClick={() => setShowConfirmReset(false)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={handleReset}
-                disabled={resetting}
-                className="px-4 py-2 text-sm bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium transition-colors shadow-sm"
+                isLoading={resetting}
               >
-                {resetting ? 'Resetting...' : 'Confirm Reset'}
-              </button>
+                Confirm Reset
+              </Button>
             </div>
           </div>
         </div>

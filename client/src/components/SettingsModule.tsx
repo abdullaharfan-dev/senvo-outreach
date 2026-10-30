@@ -11,9 +11,20 @@ import {
   CheckCircle2,
   AlertCircle,
   FlaskConical,
-  MessageSquare
+  MessageSquare,
+  HardDrive
 } from 'lucide-react';
 import { api } from '../services/api';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter
+} from './ui/Card';
+import { Badge } from './ui/Badge';
+import { Button } from './ui/Button';
 
 interface SettingsModuleProps {
   onReset: () => void;
@@ -57,7 +68,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ onReset, onOpenT
   };
 
   const handleReset = async () => {
-    if (!window.confirm('Reset SQLite database and reload all Ireland corporate seed records?')) return;
+    if (!window.confirm('Reset database and reload all Ireland corporate seed records?')) return;
     try {
       setResetting(true);
       await api.resetDemo();
@@ -72,181 +83,233 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ onReset, onOpenT
   };
 
   return (
-    <div className="p-8 space-y-8 max-w-5xl mx-auto">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">System Configuration & Security Safeguards</h2>
-        <p className="text-xs text-slate-500">
-          Manage workspace settings, verify Gemini AI connectivity, and review persistent SQLite storage
-        </p>
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+            System Configuration & Operational Diagnostics
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Manage workspace settings, verify Gemini AI connectivity, and review cloud database telemetry
+          </p>
+        </div>
+        <Badge variant="success" size="sm" dot>
+          Operational
+        </Badge>
       </div>
 
       {/* Workspace Profile */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
-          <Building2 className="w-5 h-5 text-blue-600" />
-          <h3 className="font-bold text-slate-900 text-sm">Tenant Workspace Profile</h3>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          <div>
-            <label className="block text-slate-500 font-medium mb-1">Organization Practice</label>
-            <input
-              type="text"
-              readOnly
-              value="SENVO Ireland Corporate & Professional Services"
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold"
-            />
-          </div>
-          <div>
-            <label className="block text-slate-500 font-medium mb-1">Operating Jurisdiction</label>
-            <input
-              type="text"
-              readOnly
-              value="Ireland (Dublin • Cork • Galway)"
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold"
-            />
-          </div>
-          <div>
-            <label className="block text-slate-500 font-medium mb-1">Assigned Demo Account</label>
-            <input
-              type="text"
-              readOnly
-              value="partner@senvo.ie (Senior Client Partner)"
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            />
-          </div>
-          <div>
-            <label className="block text-slate-500 font-medium mb-1">Outreach Dispatch Mode</label>
-            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Compliance Sandbox (Verified Persistent Database Dispatch)</span>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center text-blue-600">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <CardTitle>Tenant Workspace Profile</CardTitle>
+              <CardDescription>Designated organizational practice and operating environment</CardDescription>
             </div>
           </div>
-        </div>
-      </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label className="block text-slate-500 font-semibold mb-1 uppercase tracking-wider text-[11px]">
+                Organization Practice
+              </label>
+              <input
+                type="text"
+                readOnly
+                value="SENVO Ireland Corporate & Professional Services"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-500 font-semibold mb-1 uppercase tracking-wider text-[11px]">
+                Operating Jurisdiction
+              </label>
+              <input
+                type="text"
+                readOnly
+                value="Ireland (Dublin • Cork • Galway)"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-500 font-semibold mb-1 uppercase tracking-wider text-[11px]">
+                Assigned Demo Account
+              </label>
+              <input
+                type="text"
+                readOnly
+                value="partner@senvo.ie (Declan O'Sullivan • Client Services Lead)"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-500 font-semibold mb-1 uppercase tracking-wider text-[11px]">
+                Outreach Dispatch Mode
+              </label>
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="truncate">Compliance Sandbox (Simulated Outbound Safety Active)</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Internal Testing & Scenario Simulation Sandbox */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      <Card>
+        <CardHeader>
           <div className="flex items-center gap-2.5">
-            <FlaskConical className="w-5 h-5 text-indigo-600" />
+            <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-indigo-600">
+              <FlaskConical className="w-4 h-4" />
+            </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">Testing & Sandbox Tools</h3>
-              <p className="text-[11px] text-slate-500">Inject simulated inbound inquiries to evaluate AI triage and classification</p>
+              <CardTitle>Testing & Scenario Simulation Tools</CardTitle>
+              <CardDescription>
+                Inject simulated inbound inquiries across 7 channels to test AI intent triage and classification
+              </CardDescription>
             </div>
           </div>
           {onOpenTestSimulator && (
-            <button
+            <Button
+              variant="secondary"
+              size="xs"
+              leftIcon={<MessageSquare className="w-3.5 h-3.5" />}
               onClick={onOpenTestSimulator}
-              className="flex items-center gap-2 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
             >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Launch Inbound Inquiry Simulator</span>
-            </button>
+              Launch Simulator
+            </Button>
           )}
-        </div>
+        </CardHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
-            <span className="font-bold text-slate-800 block text-[11px]">Multi-Channel Inbound Evaluation</span>
-            <p className="text-[11px] leading-relaxed text-slate-500">
-              Trigger inquiries across any of the 7 supported channels (LinkedIn, WhatsApp, Email, Website Form, Facebook, Instagram, SMS).
-            </p>
+        <CardContent className="space-y-3 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-600">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
+              <span className="font-bold text-slate-800 block text-[11px]">Multi-Channel Inbound Evaluation</span>
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                Trigger inquiries across any of the 7 supported channels (LinkedIn, WhatsApp, Email, Website Form, Facebook, Instagram, SMS).
+              </p>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
+              <span className="font-bold text-slate-800 block text-[11px]">Real-Time Gemini Intent Classification</span>
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                Each test inquiry triggers the server-side Gemini AI engine to produce intent scores, Irish statutory grounding, and suggested response copy.
+              </p>
+            </div>
           </div>
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
-            <span className="font-bold text-slate-800 block text-[11px]">Real-Time Gemini Intent Classification</span>
-            <p className="text-[11px] leading-relaxed text-slate-500">
-              Each test inquiry triggers the server-side Gemini AI engine to produce intent scores, Irish statutory grounding, and suggested response copy.
-            </p>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* AI Diagnostic */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      <Card>
+        <CardHeader>
           <div className="flex items-center gap-2.5">
-            <Sparkles className="w-5 h-5 text-blue-600" />
-            <h3 className="font-bold text-slate-900 text-sm">Server-Side Gemini AI Engine</h3>
+            <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center text-blue-600">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <CardTitle>Server-Side Gemini AI Engine</CardTitle>
+              <CardDescription>Direct integration for intent triage, summarization, and suggested copy</CardDescription>
+            </div>
           </div>
-          <button
-            onClick={handleTestAi}
-            className="text-xs px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg border border-blue-200 transition-colors cursor-pointer"
-          >
+          <Button variant="outline" size="xs" onClick={handleTestAi}>
             Test Live AI Call
-          </button>
-        </div>
+          </Button>
+        </CardHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <span className="text-slate-400 block text-[11px]">Provider Architecture</span>
-            <span className="font-bold text-slate-900">Google Gemini API</span>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <span className="text-slate-400 block text-[11px]">Configured Model</span>
-            <span className="font-bold text-blue-700">
-              {health?.ai?.model || 'gemini-3.5-flash-lite'}
-            </span>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <span className="text-slate-400 block text-[11px]">Server Authentication</span>
-            <span className="font-bold text-emerald-700 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Verified Server-Side Secret</span>
-            </span>
-          </div>
-        </div>
-
-        {testResult && (
-          <div className="p-3 bg-slate-900 text-cyan-300 font-mono text-xs rounded-lg border border-slate-800">
-            {testResult}
-          </div>
-        )}
-      </div>
-
-      {/* Persistent Database Information */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
-          <Database className="w-5 h-5 text-indigo-600" />
-          <h3 className="font-bold text-slate-900 text-sm">Persistent Database Architecture</h3>
-        </div>
-
-        <div className="space-y-3 text-xs">
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
-            <div className="flex justify-between">
-              <span className="font-medium text-slate-600">Storage Location:</span>
-              <span className="font-mono text-slate-900 font-semibold">server/data/senvo_outreach.db</span>
+        <CardContent className="space-y-3 pt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/70">
+              <span className="text-slate-400 block text-[11px]">Provider Architecture</span>
+              <span className="font-bold text-slate-900">Google Gemini API</span>
             </div>
-            <div className="flex justify-between">
-              <span className="font-medium text-slate-600">Engine / Concurrency:</span>
-              <span className="font-mono text-slate-900">SQLite 3 (WAL Journal Mode & Foreign Keys ON)</span>
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/70">
+              <span className="text-slate-400 block text-[11px]">Configured Model</span>
+              <span className="font-bold text-blue-700">
+                {health?.ai?.model || 'gemini-3.5-flash-lite'}
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span className="font-medium text-slate-600">Entity Models:</span>
-              <span className="font-mono text-slate-900">10 Core Relational Tables Initialized</span>
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/70">
+              <span className="text-slate-400 block text-[11px]">Server Authentication</span>
+              <span className="font-bold text-emerald-700 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Verified Server-Side Secret</span>
+              </span>
+            </div>
+          </div>
+
+          {testResult && (
+            <div className="p-3 bg-slate-900 text-cyan-300 font-mono text-xs rounded-lg border border-slate-800 break-words">
+              {testResult}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Persistent Database Information (Supabase PostgreSQL) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600">
+              <Database className="w-4 h-4" />
+            </div>
+            <div>
+              <CardTitle>Persistent Cloud Database Architecture</CardTitle>
+              <CardDescription>Managed 24/7 cloud persistence via Supabase PostgreSQL</CardDescription>
+            </div>
+          </div>
+          <Badge variant="success" size="xs" dot>
+            Connected
+          </Badge>
+        </CardHeader>
+
+        <CardContent className="space-y-3 pt-4 text-xs">
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <span className="font-medium text-slate-600">Database Connection:</span>
+              <span className="font-mono text-slate-900 font-semibold break-all">
+                {health?.database || 'connected (Supabase PostgreSQL: senvo_outreach)'}
+              </span>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <span className="font-medium text-slate-600">Schema Isolation:</span>
+              <span className="font-mono text-emerald-800 font-semibold bg-emerald-100/70 px-1.5 py-0.5 rounded">
+                senvo_outreach (Strictly isolated from SENVO Dukaan public schema)
+              </span>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <span className="font-medium text-slate-600">Relational Models:</span>
+              <span className="font-mono text-slate-900">
+                11 Relational Tables with Foreign Key Constraints & Performance Indexes
+              </span>
             </div>
           </div>
           <p className="text-slate-500 text-[11px] leading-relaxed">
-            Database records persist across server restarts and page refreshes. Clean separation of concerns ensures straightforward migration to Supabase/PostgreSQL when scheduled.
+            All leads, outreach campaigns, recipient personalized messages, incoming conversations, and Bitrix24 CRM handoffs persist safely in Supabase PostgreSQL across serverless restarts and client reloads.
           </p>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Demo Reset Action */}
-      <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-rose-50/80 border border-rose-200/80 rounded-xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h4 className="font-bold text-rose-900 text-sm">Reset Operational Demo State</h4>
-          <p className="text-xs text-rose-700 mt-0.5">
+          <h4 className="font-bold text-rose-950 text-sm">Reset Operational Demo State</h4>
+          <p className="text-xs text-rose-800 mt-0.5">
             Re-seeds clean Ireland corporate leads, sample campaigns, active multi-channel inbox threads, and approved knowledge.
           </p>
         </div>
-        <button
+        <Button
+          variant="danger"
+          size="sm"
+          isLoading={resetting}
           onClick={handleReset}
-          disabled={resetting}
-          className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
         >
-          {resetting ? 'Resetting DB...' : 'Reset Demo Database'}
-        </button>
+          Reset Demo Database
+        </Button>
       </div>
     </div>
   );

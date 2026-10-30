@@ -2,16 +2,29 @@ import React, { useState, useEffect } from 'react';
 import {
   BarChart3,
   TrendingUp,
-  PieChart,
   ShieldCheck,
   CheckCircle2,
   Clock,
   MessageSquare,
   Users,
-  Award
+  Award,
+  Sparkles,
+  Zap,
+  Layers
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { OverviewMetrics } from '../types';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter
+} from './ui/Card';
+import { Badge } from './ui/Badge';
+import { StatCard } from './ui/StatCard';
+import { ProgressBar } from './ui/ProgressBar';
 
 export const AnalyticsModule: React.FC = () => {
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
@@ -26,142 +39,159 @@ export const AnalyticsModule: React.FC = () => {
 
   if (loading || !metrics) {
     return (
-      <div className="p-8 text-center text-slate-400 text-xs">
-        Aggregating analytics from persistent SQLite records...
+      <div className="p-8 text-center text-slate-400 text-xs flex items-center justify-center min-h-[300px]">
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <span>Aggregating analytics from persistent Supabase PostgreSQL tables...</span>
+        </div>
       </div>
     );
   }
 
   const { summary, funnel, channel_breakdown, intent_breakdown } = metrics;
 
+  const totalLeads = Number(summary.total_leads || 0);
+  const totalSent = Number(summary.simulated_sent || 0);
+  const totalReplies = Number(summary.inbound_replies || 0);
+  const qualifiedCount = Number(summary.qualified_leads || 0);
+  const stagedHandoffs = Number(summary.staged_handoffs || 0);
+
+  const penetrationPct = totalLeads > 0 ? Math.round((totalSent / totalLeads) * 100) : 0;
+  const responsePct = totalSent > 0 ? Math.round((totalReplies / totalSent) * 100) : 0;
+  const qualPct = totalReplies > 0 ? Math.round((qualifiedCount / totalReplies) * 100) : 0;
+  const crmStagingPct = qualifiedCount > 0 ? Math.round((stagedHandoffs / qualifiedCount) * 100) : 100;
+
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Performance Analytics & Conversion Reporting</h2>
-        <p className="text-xs text-slate-500">
-          All metrics computed dynamically from persisted SQLite records • Real-time audit trail
-        </p>
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      {/* Header section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+            Performance Analytics & Conversion Reporting
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Real-time pipeline metrics aggregated directly from Supabase PostgreSQL (<span className="font-mono text-slate-700">senvo_outreach</span> schema)
+          </p>
+        </div>
+        <Badge variant="success" size="sm" dot>
+          Live Cloud Synced
+        </Badge>
       </div>
 
-      {/* Top Ratio Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-            Audience Penetration
-          </span>
-          <p className="text-2xl font-bold text-slate-900">
-            {summary.total_leads ? Math.round((summary.simulated_sent / summary.total_leads) * 100) : 0}%
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1">
-            {summary.simulated_sent} of {summary.total_leads} leads reached
-          </p>
-        </div>
+      {/* Top Ratio KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          label="Audience Reach"
+          value={`${penetrationPct}%`}
+          icon={Users}
+          accent="slate"
+          badgeText="Penetration"
+          subtext={`${totalSent} of ${totalLeads} leads reached`}
+        />
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-            Inbound Response Rate
-          </span>
-          <p className="text-2xl font-bold text-blue-600">
-            {summary.simulated_sent ? Math.round((summary.inbound_replies / summary.simulated_sent) * 100) : 0}%
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1">
-            {summary.inbound_replies} replies received across channels
-          </p>
-        </div>
+        <StatCard
+          label="Response Rate"
+          value={`${responsePct}%`}
+          icon={MessageSquare}
+          accent="blue"
+          badgeText="Engagement"
+          subtext={`${totalReplies} replies across channels`}
+        />
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-            Qualification Conversion
-          </span>
-          <p className="text-2xl font-bold text-emerald-600">
-            {summary.inbound_replies ? Math.round((summary.qualified_leads / summary.inbound_replies) * 100) : 0}%
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1">
-            {summary.qualified_leads} leads qualified by AI & team
-          </p>
-        </div>
+        <StatCard
+          label="Qualification Rate"
+          value={`${qualPct}%`}
+          icon={Award}
+          accent="emerald"
+          badgeText="High Intent"
+          subtext={`${qualifiedCount} qualified accounts`}
+        />
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-            CRM Staging Rate
-          </span>
-          <p className="text-2xl font-bold text-indigo-600">
-            {summary.qualified_leads ? Math.round((summary.staged_handoffs / summary.qualified_leads) * 100) : 100}%
-          </p>
-          <p className="text-[11px] text-slate-400 mt-1">
-            {summary.staged_handoffs} Bitrix24 payloads formatted
-          </p>
-        </div>
+        <StatCard
+          label="CRM Staging"
+          value={`${crmStagingPct}%`}
+          icon={CheckCircle2}
+          accent="indigo"
+          badgeText="Bitrix24"
+          subtext={`${stagedHandoffs} payloads formatted`}
+        />
       </div>
 
       {/* Funnel & Intents Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
         {/* Full Conversion Funnel */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-900 text-sm">Outreach to Handoff Conversion Funnel</h3>
-            <span className="text-xs font-medium text-slate-500">Persisted Records</span>
-          </div>
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Outreach to Handoff Conversion Funnel</CardTitle>
+              <CardDescription>Pipeline stages from database activity records</CardDescription>
+            </div>
+            <Badge variant="neutral" size="xs">
+              Live DB
+            </Badge>
+          </CardHeader>
 
-          <div className="space-y-4">
+          <CardContent className="space-y-4 pt-4">
             {funnel.map((item, idx) => (
-              <div key={idx} className="space-y-1.5">
-                <div className="flex justify-between text-xs font-medium">
-                  <span className="text-slate-700">{item.stage}</span>
-                  <span className="text-slate-900 font-bold">
+              <ProgressBar
+                key={item.stage}
+                label={item.stage}
+                value={Math.min(item.percentage, 100)}
+                color={idx % 2 === 0 ? 'blue' : 'cyan'}
+                countLabel={
+                  <span>
                     {item.count} <span className="text-slate-400 font-normal">({item.percentage}%)</span>
                   </span>
-                </div>
-                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 rounded-full"
-                    style={{ width: `${Math.min(item.percentage, 100)}%` }}
-                  />
-                </div>
-              </div>
+                }
+              />
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Intent Distribution */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-900 text-sm">Gemini AI Classified Intents</h3>
-            <span className="text-xs font-medium text-slate-500">Structured Classifications</span>
-          </div>
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Gemini AI Intent Classification</CardTitle>
+              <CardDescription>Structured intent categorization across inbound responses</CardDescription>
+            </div>
+            <Badge variant="primary" size="xs">
+              Structured
+            </Badge>
+          </CardHeader>
 
-          <div className="space-y-3">
+          <CardContent className="space-y-2.5 p-4 sm:p-5">
             {intent_breakdown.map((item, idx) => (
               <div
                 key={idx}
-                className="p-3 rounded-lg border border-slate-100 bg-slate-50/60 flex items-center justify-between text-xs"
+                className="p-3 rounded-lg border border-slate-100 bg-slate-50/70 hover:bg-slate-50 flex items-center justify-between text-xs transition-colors"
               >
                 <div>
-                  <span className="font-bold text-slate-800 capitalize">
+                  <span className="font-semibold text-slate-800 capitalize">
                     {item.intent.replace(/_/g, ' ')}
                   </span>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Assessed against Irish Corporate Services criteria
                   </p>
                 </div>
-                <span className="font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
+                <span className="font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200/80 text-[11px] tabular-nums">
                   {item.count} inquiries
                 </span>
               </div>
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Compliance & Simulation Verification Box */}
-      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-950">
-        <div className="flex items-center gap-2">
+      <div className="p-4 bg-emerald-50/80 border border-emerald-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-950">
+        <div className="flex items-center gap-2.5">
           <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>
-            <strong>Safe Demo Verification:</strong> 100% of outbound messages are executed in <code>delivery_mode = simulated</code>. No external network requests were dispatched to real telephone carriers or mail servers.
+          <span className="leading-relaxed">
+            <strong>Safe Demo Verification:</strong> 100% of outbound messages are executed in <code className="bg-emerald-100 px-1 py-0.5 rounded font-mono text-[11px]">delivery_mode = simulated</code>. No external network requests were dispatched to real telephone carriers or corporate email exchangers.
           </span>
         </div>
-        <span className="font-mono text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded">
+        <span className="font-mono text-[10px] sm:text-[11px] font-bold text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded border border-emerald-300/60 shrink-0 self-start sm:self-auto">
           OUTBOUND_SAFE = TRUE
         </span>
       </div>
