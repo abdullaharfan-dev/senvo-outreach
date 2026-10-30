@@ -221,32 +221,51 @@ export const QualifiedLeadsModule: React.FC<QualifiedLeadsModuleProps> = ({ onNa
                   </div>
                 </div>
 
-                {/* Qualification Summary & Assigned Owner */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200/80">
-                  <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">
-                      Requested Service Line
+                {/* Qualification Evaluation & Criteria Assessment */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                    <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Why This Prospect Is Qualified</span>
                     </span>
-                    <span className="font-bold text-slate-900 mt-0.5 block">
-                      {lead.requested_service || 'Statutory Accounting & CRO Compliance'}
-                    </span>
+                    <Badge variant="success" size="xs">
+                      Qualification Criteria Met
+                    </Badge>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">
-                      Assigned Lead Partner
-                    </span>
-                    <span className="font-semibold text-slate-800 mt-0.5 block">
-                      {lead.assigned_owner || 'Senior Partner (Dublin Practice)'}
-                    </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-200/70">
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Requested Service</span>
+                      <span className="font-bold text-slate-900 mt-0.5 block truncate text-xs" title={lead.requested_service}>
+                        {lead.requested_service || 'Statutory Corporate Advisory'}
+                      </span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-200/70">
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Assigned Advisory Partner</span>
+                      <span className="font-semibold text-slate-800 mt-0.5 block truncate text-xs">
+                        Declan O'Sullivan (Dublin Practice)
+                      </span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-200/70">
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Suggested Next Action</span>
+                      <span className="font-bold text-blue-700 mt-0.5 block truncate text-xs">
+                        {lead.next_action || 'Dispatch 20-min Zoom link & Section 358 checklist'}
+                      </span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-200/70">
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Qualification Status</span>
+                      <span className="font-bold text-emerald-700 mt-0.5 block truncate text-xs">
+                        100% Staged for Bitrix24
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">
-                      Recommended Next Action
-                    </span>
-                    <span className="font-bold text-blue-700 mt-0.5 block">
-                      {lead.next_action || 'Schedule 15-minute discovery consultation'}
-                    </span>
-                  </div>
+
+                  {lead.qualification_summary && (
+                    <div className="p-2.5 bg-blue-50/70 rounded-lg border border-blue-100 text-xs text-slate-700 leading-relaxed">
+                      <strong className="text-blue-900">Advisory Assessment: </strong>
+                      {lead.qualification_summary}
+                    </div>
+                  )}
                 </div>
 
                 {/* Suggested Meeting Agenda & Readiness Grid */}

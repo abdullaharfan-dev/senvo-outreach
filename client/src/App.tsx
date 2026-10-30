@@ -11,6 +11,7 @@ import AnalyticsModule from './components/AnalyticsModule';
 import KnowledgeModule from './components/KnowledgeModule';
 import IntegrationsModule from './components/IntegrationsModule';
 import SettingsModule from './components/SettingsModule';
+import ClientValueCenter from './components/ClientValueCenter';
 import SimulateInboundModal from './components/SimulateInboundModal';
 import ClientDemoTour from './components/ClientDemoTour';
 import { api } from './services/api';
@@ -144,6 +145,11 @@ export const App: React.FC = () => {
           title: 'System Settings & Operational Diagnostics',
           subtitle: 'Workspace configuration, AI provider diagnostics, and persistent storage management',
         };
+      case 'value_center':
+        return {
+          title: 'Client Value Center',
+          subtitle: 'Interactive business opportunities, personalized campaign previews, AI showcase, and 30-day onboarding plan',
+        };
     }
   };
 
@@ -223,6 +229,16 @@ export const App: React.FC = () => {
             <SettingsModule
               onReset={refreshCounts}
               onOpenTestSimulator={() => setShowSimulateModal(true)}
+            />
+          )}
+
+          {activeModule === 'value_center' && (
+            <ClientValueCenter
+              onNavigateToInbox={(convId) => {
+                if (convId) setTargetConvId(convId);
+                setActiveModule('inbox');
+              }}
+              onNavigateToQualified={() => setActiveModule('qualified')}
             />
           )}
         </main>

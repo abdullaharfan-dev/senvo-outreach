@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Zap,
   Shield,
+  ShieldCheck,
   HelpCircle,
   PhoneCall,
   XCircle,
@@ -283,37 +284,43 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
   const latestAssessment = selectedConv?.assessments?.[0];
   const isLeadHandedOff = selectedConv?.status === 'handed_off';
 
-  // Preset multi-turn scenarios tailored to Ireland corporate advisory
+  // Preset multi-turn scenarios tailored to Ireland corporate advisory practice
   const scenarios = [
     {
-      id: 'scope',
-      label: 'Ask Scope Details',
+      id: 'eligibility',
+      label: 'Eligibility: Sec 358 Audit Exemption',
       icon: <HelpCircle className="w-3.5 h-3.5 text-blue-600" />,
-      prompt: `Could you clarify what is included in your statutory audit, annual return filings, and corporate tax compliance advisory packages?`,
+      prompt: `Our turnover was €6.8M with 34 staff in Galway. Under Section 358 of the Companies Act 2014, do we legally qualify to dispense with our annual statutory audit?`,
     },
     {
       id: 'pricing',
-      label: 'Ask Pricing & Retainers',
+      label: 'Pricing Objection: Fixed Fee vs Hourly',
       icon: <Zap className="w-3.5 h-3.5 text-amber-600" />,
-      prompt: `What are your fee guidelines or retainer models for ongoing Irish bookkeeping, payroll, and bi-monthly VAT compliance?`,
+      prompt: `Our current legal and accounting advisors bill €250/hour for every basic compliance phone call. How does SENVO structure retainer fees for corporate secretarial governance?`,
     },
     {
-      id: 'objection',
-      label: 'Raise Objection',
-      icon: <Shield className="w-3.5 h-3.5 text-purple-600" />,
-      prompt: `We already work with an established local accounting firm in Cork. Why should we consider transitioning our corporate compliance to SENVO?`,
+      id: 'rd_tax',
+      label: 'Service: Sec 766 R&D Credit Scope',
+      icon: <Sparkles className="w-3.5 h-3.5 text-purple-600" />,
+      prompt: `We spent €140k on proprietary software and sensor engineering. How does your practice substantiate the 30% R&D tax credit claim to prevent Revenue audit clawbacks?`,
+    },
+    {
+      id: 'competitor',
+      label: 'Competitor: Big 4 vs SENVO Advisory',
+      icon: <Shield className="w-3.5 h-3.5 text-indigo-600" />,
+      prompt: `We have used a mid-tier accounting practice in Dublin 2 for years. Why should our board transition our statutory compliance and annual filings to SENVO?`,
     },
     {
       id: 'meeting',
-      label: 'Request 20-Min Zoom Call',
+      label: 'Meeting Interest: 20-Min Zoom Call',
       icon: <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />,
-      prompt: `Sounds very relevant to our expansion plans. Are you available for a 20-minute Zoom introductory call this Thursday afternoon to discuss?`,
+      prompt: `The Section 358 audit exemption and Postponed VAT Accounting are both very relevant for our board. I am free Thursday at 2:30 PM for a 20-minute Zoom call with Declan. Does that work?`,
     },
     {
-      id: 'decline',
-      label: 'Decline / Not Now',
-      icon: <XCircle className="w-3.5 h-3.5 text-rose-500" />,
-      prompt: `Thank you for reaching out, but our corporate board is not evaluating external advisory or audit firms at this time.`,
+      id: 'handoff',
+      label: 'Partner Handoff: Scope Confirmation',
+      icon: <Award className="w-3.5 h-3.5 text-emerald-700" />,
+      prompt: `Please send the formal engagement letter and onboarding checklist for Senior Partner Declan O'Sullivan to review with our Finance Director.`,
     },
   ];
 
@@ -882,12 +889,18 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                         />
                       </div>
 
-                      {/* Requested Service Line */}
-                      <div className="text-[11px]">
-                        <span className="text-slate-500 font-medium">Service Line: </span>
-                        <span className="font-semibold text-slate-800">
-                          {latestAssessment.requested_service}
-                        </span>
+                      {/* Requested Service Line & Approved Knowledge Grounding */}
+                      <div className="text-[11px] space-y-1">
+                        <div>
+                          <span className="text-slate-500 font-medium">Service Line: </span>
+                          <span className="font-semibold text-slate-800">
+                            {latestAssessment.requested_service}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span className="truncate">Grounding: Approved Irish Statutory Knowledge Base</span>
+                        </div>
                       </div>
 
                       {/* Conversation Summary Box */}
@@ -896,6 +909,31 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                           Executive Context Summary:
                         </span>
                         {latestAssessment.summary}
+                      </div>
+
+                      {/* Qualification Criteria Checklist */}
+                      <div className="bg-slate-50/90 p-2.5 rounded-lg border border-slate-200 text-[11px] space-y-1.5">
+                        <span className="font-bold text-slate-800 text-[10px] uppercase tracking-wider block">
+                          Qualification Criteria Checklist:
+                        </span>
+                        <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                          <span className="flex items-center gap-1 text-emerald-800 font-medium">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>C-Suite Identified</span>
+                          </span>
+                          <span className="flex items-center gap-1 text-emerald-800 font-medium">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>Irish Legal Nexus</span>
+                          </span>
+                          <span className="flex items-center gap-1 text-emerald-800 font-medium">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>Scope Validated</span>
+                          </span>
+                          <span className="flex items-center gap-1 text-emerald-800 font-medium">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>Intent Confirmed</span>
+                          </span>
+                        </div>
                       </div>
 
                       {/* Recommended Next Action */}
@@ -971,7 +1009,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                             className="w-full"
                             leftIcon={<Award className="w-3.5 h-3.5" />}
                           >
-                            Qualify & Stage CRM Handoff
+                            Stage for Senior Partner Declan O'Sullivan
                           </Button>
                         )}
                       </div>

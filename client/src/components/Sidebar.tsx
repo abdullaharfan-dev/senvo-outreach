@@ -11,7 +11,8 @@ import {
   Settings,
   Building2,
   X,
-  Database
+  Database,
+  Sparkles
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 
@@ -24,7 +25,8 @@ export type ModuleType =
   | 'analytics'
   | 'knowledge'
   | 'integrations'
-  | 'settings';
+  | 'settings'
+  | 'value_center';
 
 interface SidebarProps {
   activeModule: ModuleType;
@@ -82,6 +84,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         { id: 'analytics', label: 'Analytics & KPIs', icon: BarChart3 },
         { id: 'knowledge', label: 'Company Knowledge', icon: BookOpen },
+      ],
+    },
+    {
+      label: 'CLIENT PRESENTATION',
+      items: [
+        {
+          id: 'value_center',
+          label: 'Client Value Center',
+          icon: Sparkles,
+        },
       ],
     },
     {

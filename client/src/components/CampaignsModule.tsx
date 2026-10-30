@@ -68,6 +68,9 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
   // Preview index for sample recipient preview
   const [previewLeadIndex, setPreviewLeadIndex] = useState<number>(0);
   const [isLaunching, setIsLaunching] = useState<boolean>(false);
+  const [sequenceTab, setSequenceTab] = useState<'touch_1' | 'touch_2' | 'touch_3' | 'linkedin'>('touch_1');
+  const [isEditingCopy, setIsEditingCopy] = useState<boolean>(false);
+  const [editedBody, setEditedBody] = useState<string>('');
 
   const fetchCampaigns = async () => {
     try {
@@ -429,28 +432,226 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                   </div>
                 </div>
 
-                {/* Approved Message Template */}
-                <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-4 text-xs space-y-2">
-                  <div className="font-semibold text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <span className="flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Approved Outreach Copy</span>
+                {/* Campaign Strategy & Objectives Banner */}
+                <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3.5 text-xs space-y-2">
+                  <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                    <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Campaign Strategy & Positioning Angle</span>
                     </span>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-blue-600 font-mono text-[10px]">
-                        &#123;CONTACT_NAME&#125;
-                      </code>
-                      <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-blue-600 font-mono text-[10px]">
-                        &#123;BUSINESS_NAME&#125;
-                      </code>
-                      <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-blue-600 font-mono text-[10px]">
-                        &#123;CITY&#125;
-                      </code>
+                    <Badge variant="primary" size="xs">
+                      Simulation Mode
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-200/70">
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Target Audience</span>
+                      <span className="font-semibold text-slate-900 mt-0.5 block truncate" title={selectedCampaign.target_audience}>
+                        {selectedCampaign.target_audience || 'Irish Corporate Prospects'}
+                      </span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-200/70">
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Messaging Angle</span>
+                      <span className="font-semibold text-blue-900 mt-0.5 block truncate">
+                        {selectedCampaign.name.includes('Audit')
+                          ? 'Section 358 Audit Exemption & Cost Savings'
+                          : selectedCampaign.name.includes('VAT')
+                          ? 'Postponed VAT Accounting (PVA) at Ports'
+                          : 'Statutory CRO Compliance & Risk Defense'}
+                      </span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-slate-200/70">
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Campaign Objective</span>
+                      <span className="font-semibold text-emerald-800 mt-0.5 block truncate">
+                        Book 20-min Zoom Partner Consultation
+                      </span>
                     </div>
                   </div>
-                  <p className="text-slate-700 whitespace-pre-line leading-relaxed font-sans text-xs bg-white p-3 rounded-lg border border-slate-200/80 shadow-2xs">
-                    {selectedCampaign.template_body}
-                  </p>
+                </div>
+
+                {/* Multi-Touch Sequence & Channel Variations */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 text-xs space-y-3 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-xs">
+                        Multi-Touch Sequence & Channel Variations
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        First-touch email, automated follow-ups, and executive LinkedIn variations
+                      </p>
+                    </div>
+
+                    {/* Sequence Tabs */}
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                      <button
+                        onClick={() => {
+                          setSequenceTab('touch_1');
+                          setIsEditingCopy(false);
+                        }}
+                        className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                          sequenceTab === 'touch_1'
+                            ? 'bg-white text-blue-700 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Touch 1 (Day 0)
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSequenceTab('touch_2');
+                          setIsEditingCopy(false);
+                        }}
+                        className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                          sequenceTab === 'touch_2'
+                            ? 'bg-white text-blue-700 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Touch 2 (Day 3)
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSequenceTab('touch_3');
+                          setIsEditingCopy(false);
+                        }}
+                        className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                          sequenceTab === 'touch_3'
+                            ? 'bg-white text-blue-700 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Touch 3 (Day 7)
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSequenceTab('linkedin');
+                          setIsEditingCopy(false);
+                        }}
+                        className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                          sequenceTab === 'linkedin'
+                            ? 'bg-white text-indigo-700 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        LinkedIn
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Active Sequence Content Display / Editor */}
+                  {(() => {
+                    const sampleLead = selectedCampaign.recipients?.[0] || {
+                      contact_name: 'Eamon Walsh',
+                      company_name: 'Connacht Financial Technology Ltd',
+                      city: 'Galway',
+                    };
+
+                    const getBaseCopy = () => {
+                      if (sequenceTab === 'touch_1') {
+                        return selectedCampaign.template_body;
+                      }
+                      if (sequenceTab === 'touch_2') {
+                        return `Hi {CONTACT_NAME},\n\nFollowing up on my earlier note regarding {BUSINESS_NAME}'s statutory compliance posture in {CITY}.\n\nLast month, we guided a comparable Irish corporate entity through Section 358 Companies Act 2014 qualification, replacing an €18,000 full audit with certified compilation balance sheets—saving €12,500 annually while maintaining complete bank covenant compliance.\n\nCould we explore whether {BUSINESS_NAME} satisfies these same thresholds? A brief 10-minute discovery call is all it takes.\n\nBest regards,\nDeclan O'Sullivan | Senior Partner`;
+                      }
+                      if (sequenceTab === 'touch_3') {
+                        return `{CONTACT_NAME} — As CRO Form B1 statutory filing windows approach, I wanted to extend a final courtesy note to review {BUSINESS_NAME}'s filing schedule.\n\nLate CRO filings trigger automatic €100 base + €3/day penalties and result in 2 years of mandatory audit forfeiture. Our fixed-fee corporate advisory retainer eliminates that risk completely.\n\nI have 20 minutes open this Thursday at 2:30 PM or Friday at 10:00 AM. Does either work for an exploratory Zoom?\n\nDeclan O'Sullivan`;
+                      }
+                      return `Hi {CONTACT_NAME}, noticed your leadership role at {BUSINESS_NAME} in {CITY}. We partner with Irish managing directors to streamline Companies Act 2014 statutory filings and evaluate Section 358 audit exemption eligibility. Would welcome connecting here to share our 2026 Irish Corporate Advisory Benchmarks.\n\nDeclan O'Sullivan | SENVO Ireland Corporate Practice`;
+                    };
+
+                    const rawCopy = editedBody || getBaseCopy();
+                    const interpolatedCopy = rawCopy
+                      .replace(/\{CONTACT_NAME\}/g, sampleLead.contact_name || 'Managing Director')
+                      .replace(/\{BUSINESS_NAME\}/g, sampleLead.company_name || 'Irish Enterprise Ltd')
+                      .replace(/\{CITY\}/g, sampleLead.city || 'Dublin');
+
+                    return (
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-blue-600" />
+                            <span>
+                              {sequenceTab === 'touch_1'
+                                ? 'Touch 1: Initial Cold Briefing (Email)'
+                                : sequenceTab === 'touch_2'
+                                ? 'Touch 2: Value Demonstration & Case Proof (Day 3 Follow-up)'
+                                : sequenceTab === 'touch_3'
+                                ? 'Touch 3: Filing Window Urgency & Partner Diary (Day 7 Follow-up)'
+                                : 'LinkedIn InMail & Connection Request Snippet'}
+                            </span>
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-400 text-[10px]">Previewing for: <strong>{sampleLead.company_name}</strong></span>
+                            <button
+                              onClick={() => {
+                                if (isEditingCopy) {
+                                  setIsEditingCopy(false);
+                                } else {
+                                  setEditedBody(rawCopy);
+                                  setIsEditingCopy(true);
+                                }
+                              }}
+                              className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer text-[11px]"
+                            >
+                              {isEditingCopy ? 'Cancel Edit' : 'Edit Copy'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {isEditingCopy ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={editedBody}
+                              onChange={(e) => setEditedBody(e.target.value)}
+                              rows={5}
+                              className="w-full p-3 rounded-lg border border-blue-300 focus:ring-1 focus:ring-blue-500 font-sans text-xs text-slate-800 bg-white"
+                              placeholder="Enter sequence copy with {CONTACT_NAME}, {BUSINESS_NAME}, {CITY} tags..."
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditedBody('');
+                                  setIsEditingCopy(false);
+                                }}
+                              >
+                                Reset to Default
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="primary"
+                                onClick={() => {
+                                  setIsEditingCopy(false);
+                                }}
+                              >
+                                Apply Changes to Preview
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/70 space-y-2">
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono border-b border-slate-200/60 pb-1.5">
+                              <span>Tags interpolated with live database lead data:</span>
+                              <span className="text-blue-600 font-bold bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                {sampleLead.contact_name}
+                              </span>
+                              <span className="text-blue-600 font-bold bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                {sampleLead.company_name}
+                              </span>
+                              <span className="text-blue-600 font-bold bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                {sampleLead.city}
+                              </span>
+                            </div>
+                            <p className="text-slate-800 whitespace-pre-line leading-relaxed font-sans text-xs">
+                              {interpolatedCopy}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </Card>
 

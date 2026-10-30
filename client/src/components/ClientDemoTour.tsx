@@ -35,7 +35,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     module: 'overview',
     title: 'Executive Dashboard & Operations Desk',
-    badge: 'Step 1 of 7',
+    badge: 'Step 1 of 8',
     icon: Building2,
     description:
       'High-level operational cockpit aggregating real-time outreach pipeline telemetry from Supabase PostgreSQL (senvo_outreach schema).',
@@ -50,7 +50,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     module: 'leads',
     title: 'Lead Intelligence & Prospect Directory',
-    badge: 'Step 2 of 7',
+    badge: 'Step 2 of 8',
     icon: Users,
     description:
       'Structured directory of verified Irish corporate prospects categorized by ICP fit score, channel eligibility, and statutory filing readiness.',
@@ -65,14 +65,14 @@ const TOUR_STEPS: TourStep[] = [
   {
     module: 'campaigns',
     title: 'Campaign Orchestration & Dispatch Monitor',
-    badge: 'Step 3 of 7',
+    badge: 'Step 3 of 8',
     icon: Send,
     description:
       'Multi-channel outreach execution engine tracking recipient delivery status live from persistent database tables.',
     highlights: [
       'Real-time execution monitor with live progress bars and recipient audit logs',
       'Approved practice copy with dynamic personalization tokens ({CONTACT_NAME}, {BUSINESS_NAME}, {CITY})',
-      'Guided 4-step Campaign Builder with sample recipient live preview toggling',
+      'Multi-touch sequence previews (Touch 1, Touch 2, Touch 3, LinkedIn variations)',
       'Strict simulation safeguard: all dispatches execute in simulated delivery mode'
     ],
     callToAction: 'View live recipient audit logs or open the Campaign Builder.'
@@ -80,13 +80,13 @@ const TOUR_STEPS: TourStep[] = [
   {
     module: 'inbox',
     title: 'Unified Communication Inbox & AI SDR',
-    badge: 'Step 4 of 7',
+    badge: 'Step 4 of 8',
     icon: MessageSquare,
     description:
       '3-panel communication hub unifying inquiries across 7 channels with dual operating modes: Autonomous AI SDR and Human Co-Pilot.',
     highlights: [
       'Dual operational modes: Autonomous AI SDR vs. Human Co-Pilot review',
-      '5 multi-turn prospect scenario simulations (Scope, Pricing, Objection, Zoom Meeting, Decline)',
+      'Client-specific scenario simulations (Audit Exemption, R&D Credit, Pricing, Zoom Call)',
       'AI Reply Copilot with confidence matching, context summary, and suggested drafts',
       'Honest Gemini AI fallback: transparent diagnostics without fabricating simulated replies'
     ],
@@ -95,14 +95,14 @@ const TOUR_STEPS: TourStep[] = [
   {
     module: 'qualified',
     title: 'Qualified Leads & Meeting Conversion',
-    badge: 'Step 5 of 7',
+    badge: 'Step 5 of 8',
     icon: Award,
     description:
       'High-intent Irish corporate opportunities staged for senior partner discovery consultations and Bitrix24 CRM synchronization.',
     highlights: [
       'Meeting Conversion Workspace with verified prospect requirements',
       'Suggested 3-point statutory discovery call meeting agenda',
-      'Full expandable multi-turn conversation dialogue history',
+      'Structured evaluation criteria explaining why each prospect is qualified',
       'Bitrix24 REST API staged payload viewer (crm.lead.add schema)'
     ],
     callToAction: 'Review staged meeting agendas and inspect the Bitrix24 JSON schema.'
@@ -110,22 +110,38 @@ const TOUR_STEPS: TourStep[] = [
   {
     module: 'analytics',
     title: 'Performance & Conversion Analytics',
-    badge: 'Step 6 of 7',
+    badge: 'Step 6 of 8',
     icon: BarChart3,
     description:
       'Executive business intelligence workspace displaying monotonic conversion funnels, campaign comparisons, and actionable insights.',
     highlights: [
       'Executive performance overview (Contacted, Responses, Positive Intent, Objections, Handoffs)',
-      'Clean 7-stage conversion funnel derived strictly from actual database records',
+      'Lead-quality distribution across 4 weighted ICP scoring tiers',
       'Cross-campaign delivery and response comparison table',
-      'Actionable insights desk identifying sector patterns and follow-up alerts'
+      'Evidence-based actionable recommendations grounded in database records'
     ],
     callToAction: 'Explore the conversion funnel and campaign comparison table.'
   },
   {
+    module: 'value_center',
+    title: 'Client Value Center (Presentation Workspace)',
+    badge: 'Step 7 of 8',
+    icon: Sparkles,
+    description:
+      'Dedicated client-facing presentation workspace featuring targeted Irish business opportunities, personalized campaign previews, 7 interactive AI scenarios, and a 30-day onboarding plan.',
+    highlights: [
+      'Module A: Target segments & business opportunities with verified facts vs inferred opportunities',
+      'Module B: Personalized campaign previews across first-touch and multi-touch follow-ups',
+      'Module C: Interactive AI conversation showcase with 7 realistic prospect engagement dialogues',
+      'Module D: Editable 30-day implementation plan with task status tracking',
+      'Module E: Comprehensive client-facing report with print & PDF export support'
+    ],
+    callToAction: 'Review target segments, preview personalized sequence copy, or print the Client Value Report.'
+  },
+  {
     module: 'integrations',
     title: 'Connected Accounts & Honest Gateway Setup',
-    badge: 'Step 7 of 7',
+    badge: 'Step 8 of 8',
     icon: Layers,
     description:
       'Enterprise communication channels across 8 platforms with transparent distinction between simulated sandbox accounts and live OAuth.',
