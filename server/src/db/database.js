@@ -13,7 +13,7 @@ const getDirname = () => {
 const __dirname = getDirname();
 
 const DATABASE_URL = process.env.DATABASE_URL;
-const isPostgres = Boolean(DATABASE_URL && (DATABASE_URL.startsWith('postgres://') || DATABASE_URL.startsWith('postgresql://')));
+export const isPostgres = Boolean(DATABASE_URL && (DATABASE_URL.startsWith('postgres://') || DATABASE_URL.startsWith('postgresql://')));
 
 let sqliteDb = null;
 let pgPool = null;
