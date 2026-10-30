@@ -76,6 +76,13 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls - Responsive */}
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        {/* Client Demo Environment Indicator */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-[11px] font-bold text-blue-800 shadow-2xs">
+          <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+          <span className="hidden xs:inline">CLIENT DEMO</span>
+          <span className="xs:hidden">DEMO</span>
+        </div>
+
         {/* Workspace Location Indicator */}
         <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700">
           <Building2 className="w-3.5 h-3.5 text-blue-600" />

@@ -2,7 +2,7 @@ import https from 'https';
 import { query } from '../db/database.js';
 
 // Environment variable for Gemini API key
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AQ.Ab8RN6IIDgouzgw7biI6bO6C_1U_FoUqz36XY5VW9ZXDfXaNCQ';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 /**

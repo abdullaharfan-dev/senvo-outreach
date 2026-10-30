@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: senvo-outreach-backend
+    env: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node src/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: senvo-outreach-db
+          property: connectionString
+    autoDeploy: true
+
+databases:
+  - name: senvo-outreach-db
+    plan: free

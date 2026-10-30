@@ -13,101 +13,118 @@ import type {
   ChannelType
 } from '../types';
 
-const API_BASE = '/api';
+// In production, can use relative /api (proxied by Netlify) or an absolute remote backend URL
+const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
+
+/**
+ * Resilient API request wrapper:
+ * Prevents "Unexpected token '<', '<!doctype '... is not valid JSON" errors
+ * by checking content-type and detecting non-JSON HTML error pages (e.g. 502, 504, 404).
+ */
+async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = cleanEndpoint.startsWith('http') ? cleanEndpoint : `${API_BASE}${cleanEndpoint}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, options);
+  } catch (netErr: any) {
+    throw new Error(`Network connection error: ${netErr.message || 'Unable to reach backend API'}`);
+  }
+
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text();
+
+  // If the server returned HTML instead of JSON
+  if (text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('<!doctype') || !contentType.includes('application/json')) {
+    if (!res.ok) {
+      throw new Error(`Backend service unavailable (HTTP ${res.status}): The API service is currently unreachable or starting up.`);
+    }
+    // Netlify fallback rewrites unknown routes to index.html with HTTP 200
+    if (text.includes('<html') || text.includes('<!doctype')) {
+      throw new Error(`Endpoint '${cleanEndpoint}' returned an HTML page instead of API JSON. Verify backend deployment and API proxy.`);
+    }
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Server returned invalid response format: ${text.slice(0, 100)}...`);
+  }
+
+  if (!res.ok) {
+    const errorMsg = data?.error || data?.message || `API request failed with status ${res.status}`;
+    throw new Error(errorMsg);
+  }
+
+  return data as T;
+}
 
 export const api = {
   // Overview
   getOverview: async (): Promise<OverviewMetrics> => {
-    const res = await fetch(`${API_BASE}/overview`);
-    if (!res.ok) throw new Error('Failed to fetch overview metrics');
-    return res.json();
+    return apiRequest<OverviewMetrics>('/overview');
   },
 
   // Leads
   getLeads: async (params?: { search?: string; industry?: string; priority?: string; status?: string; page?: number; limit?: number }) => {
     const query = new URLSearchParams(params as any).toString();
-    const res = await fetch(`${API_BASE}/leads?${query}`);
-    if (!res.ok) throw new Error('Failed to fetch leads');
-    return res.json() as Promise<{ leads: Lead[]; total: number; page: number; limit: number }>;
+    return apiRequest<{ leads: Lead[]; total: number; page: number; limit: number }>(`/leads?${query}`);
   },
 
   getSegments: async (): Promise<LeadSegment[]> => {
-    const res = await fetch(`${API_BASE}/leads/segments`);
-    if (!res.ok) throw new Error('Failed to fetch segments');
-    return res.json();
+    return apiRequest<LeadSegment[]>('/leads/segments');
   },
 
   parseLeadFile: async (file: File): Promise<ParseFileResult> => {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${API_BASE}/leads/parse-file`, {
+    return apiRequest<ParseFileResult>('/leads/parse-file', {
       method: 'POST',
       body: formData,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to parse file');
-    }
-    return res.json();
   },
 
   validateImport: async (records: any[], columnMap: Record<string, string>): Promise<ValidationResult> => {
-    const res = await fetch(`${API_BASE}/leads/validate-import`, {
+    return apiRequest<ValidationResult>('/leads/validate-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ records, columnMap }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to validate records');
-    }
-    return res.json();
   },
 
   commitImport: async (approvedRecords: any[], sourceName?: string): Promise<{ committed: number; createdIds: string[] }> => {
-    const res = await fetch(`${API_BASE}/leads/commit-import`, {
+    return apiRequest<{ committed: number; createdIds: string[] }>('/leads/commit-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ approvedRecords, sourceName }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to commit batch');
-    }
-    return res.json();
   },
 
   createLead: async (data: Partial<Lead>): Promise<Lead> => {
-    const res = await fetch(`${API_BASE}/leads`, {
+    return apiRequest<Lead>('/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to create lead');
-    return res.json();
   },
 
   updateLead: async (id: string, data: Partial<Lead>): Promise<Lead> => {
-    const res = await fetch(`${API_BASE}/leads/${id}`, {
+    return apiRequest<Lead>(`/leads/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to update lead');
-    return res.json();
   },
 
   // Campaigns
   getCampaigns: async (): Promise<Campaign[]> => {
-    const res = await fetch(`${API_BASE}/campaigns`);
-    if (!res.ok) throw new Error('Failed to fetch campaigns');
-    return res.json();
+    return apiRequest<Campaign[]>('/campaigns');
   },
 
   getCampaignById: async (id: string): Promise<Campaign> => {
-    const res = await fetch(`${API_BASE}/campaigns/${id}`);
-    if (!res.ok) throw new Error('Failed to fetch campaign');
-    return res.json();
+    return apiRequest<Campaign>(`/campaigns/${id}`);
   },
 
   createCampaign: async (data: {
@@ -118,49 +135,37 @@ export const api = {
     target_audience?: string;
     lead_ids?: string[];
   }): Promise<Campaign> => {
-    const res = await fetch(`${API_BASE}/campaigns`, {
+    return apiRequest<Campaign>('/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to create campaign');
-    return res.json();
   },
 
   startCampaign: async (id: string) => {
-    const res = await fetch(`${API_BASE}/campaigns/${id}/start`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to start campaign');
-    return res.json();
+    return apiRequest(`/campaigns/${id}/start`, { method: 'POST' });
   },
 
   pauseCampaign: async (id: string) => {
-    const res = await fetch(`${API_BASE}/campaigns/${id}/pause`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to pause campaign');
-    return res.json();
+    return apiRequest(`/campaigns/${id}/pause`, { method: 'POST' });
   },
 
   // Unified Inbox
   getConversations: async (params?: { channel?: string; status?: string; search?: string }): Promise<Conversation[]> => {
     const query = new URLSearchParams(params as any).toString();
-    const res = await fetch(`${API_BASE}/inbox/conversations?${query}`);
-    if (!res.ok) throw new Error('Failed to fetch conversations');
-    return res.json();
+    return apiRequest<Conversation[]>(`/inbox/conversations?${query}`);
   },
 
   getConversationDetails: async (id: string): Promise<Conversation> => {
-    const res = await fetch(`${API_BASE}/inbox/conversations/${id}`);
-    if (!res.ok) throw new Error('Failed to fetch conversation details');
-    return res.json();
+    return apiRequest<Conversation>(`/inbox/conversations/${id}`);
   },
 
   sendMessage: async (conversationId: string, data: { content: string; is_ai_generated?: boolean; sender_name?: string }) => {
-    const res = await fetch(`${API_BASE}/inbox/conversations/${conversationId}/messages`, {
+    return apiRequest(`/inbox/conversations/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to send message');
-    return res.json();
   },
 
   simulateIncomingReply: async (data: {
@@ -171,84 +176,61 @@ export const api = {
     senderName?: string;
     auto_respond?: boolean;
   }) => {
-    const res = await fetch(`${API_BASE}/inbox/simulate-incoming`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to simulate incoming message');
-    }
-    return res.json() as Promise<{
+    return apiRequest<{
       conversation: Conversation;
       ai_result: any;
       auto_responded?: boolean;
       auto_reply_message?: any;
       auto_qualified?: boolean;
-    }>;
-  },
-
-  reassessConversation: async (conversationId: string) => {
-    const res = await fetch(`${API_BASE}/inbox/conversations/${conversationId}/re-assess`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to re-assess conversation');
-    }
-    return res.json() as Promise<{
-      success: boolean;
-      assessment?: any;
-      conversation?: Conversation;
-      error?: string;
-    }>;
-  },
-
-  // Connected Accounts
-  getAccounts: async (): Promise<ConnectedAccount[]> => {
-    const res = await fetch(`${API_BASE}/accounts`);
-    if (!res.ok) throw new Error('Failed to fetch connected accounts');
-    return res.json();
-  },
-
-  createAccount: async (data: Partial<ConnectedAccount>): Promise<ConnectedAccount> => {
-    const res = await fetch(`${API_BASE}/accounts`, {
+    }>('/inbox/simulate-incoming', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to create account');
-    }
-    return res.json();
+  },
+
+  reassessConversation: async (conversationId: string) => {
+    return apiRequest<{
+      success: boolean;
+      assessment?: any;
+      conversation?: Conversation;
+      error?: string;
+    }>(`/inbox/conversations/${conversationId}/re-assess`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+
+  // Connected Accounts
+  getAccounts: async (): Promise<ConnectedAccount[]> => {
+    return apiRequest<ConnectedAccount[]>('/accounts');
+  },
+
+  createAccount: async (data: Partial<ConnectedAccount>): Promise<ConnectedAccount> => {
+    return apiRequest<ConnectedAccount>('/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
   },
 
   testAccount: async (id: string): Promise<{ success: boolean; status: string; latency_ms: number; message: string }> => {
-    const res = await fetch(`${API_BASE}/accounts/${id}/test`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to test account connection');
-    return res.json();
+    return apiRequest<{ success: boolean; status: string; latency_ms: number; message: string }>(`/accounts/${id}/test`, {
+      method: 'POST'
+    });
   },
 
   disconnectAccount: async (id: string): Promise<ConnectedAccount> => {
-    const res = await fetch(`${API_BASE}/accounts/${id}/disconnect`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to disconnect account');
-    return res.json();
+    return apiRequest<ConnectedAccount>(`/accounts/${id}/disconnect`, { method: 'POST' });
   },
 
   reconnectAccount: async (id: string): Promise<ConnectedAccount> => {
-    const res = await fetch(`${API_BASE}/accounts/${id}/reconnect`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to reconnect account');
-    return res.json();
+    return apiRequest<ConnectedAccount>(`/accounts/${id}/reconnect`, { method: 'POST' });
   },
 
   // Qualified Leads
   getQualifiedLeads: async (): Promise<QualifiedLead[]> => {
-    const res = await fetch(`${API_BASE}/qualified-leads`);
-    if (!res.ok) throw new Error('Failed to fetch qualified leads');
-    return res.json();
+    return apiRequest<QualifiedLead[]>('/qualified-leads');
   },
 
   qualifyLead: async (data: {
@@ -258,37 +240,33 @@ export const api = {
     assigned_owner?: string;
     next_action?: string;
   }) => {
-    const res = await fetch(`${API_BASE}/qualified-leads`, {
+    return apiRequest('/qualified-leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to qualify lead');
-    return res.json();
   },
 
   // Knowledge & Integrations
   getKnowledge: async (): Promise<KnowledgeItem[]> => {
-    const res = await fetch(`${API_BASE}/knowledge`);
-    if (!res.ok) throw new Error('Failed to fetch knowledge');
-    return res.json();
+    return apiRequest<KnowledgeItem[]>('/knowledge');
   },
 
   getIntegrations: async (): Promise<IntegrationConfig[]> => {
-    const res = await fetch(`${API_BASE}/integrations`);
-    if (!res.ok) throw new Error('Failed to fetch integrations');
-    return res.json();
+    return apiRequest<IntegrationConfig[]>('/integrations');
   },
 
   getHealth: async () => {
-    const res = await fetch(`${API_BASE}/health`);
-    if (!res.ok) throw new Error('Failed to fetch health check');
-    return res.json();
+    return apiRequest<{
+      server: string;
+      database: string;
+      ai: { status: string; model: string; authenticated: boolean };
+      simulation_mode: boolean;
+      timestamp: string;
+    }>('/health');
   },
 
   resetDemo: async () => {
-    const res = await fetch(`${API_BASE}/admin/reset-demo`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to reset demo');
-    return res.json();
+    return apiRequest('/admin/reset-demo', { method: 'POST' });
   }
 };

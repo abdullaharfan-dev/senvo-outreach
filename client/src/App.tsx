@@ -12,17 +12,26 @@ import KnowledgeModule from './components/KnowledgeModule';
 import IntegrationsModule from './components/IntegrationsModule';
 import SettingsModule from './components/SettingsModule';
 import SimulateInboundModal from './components/SimulateInboundModal';
-import LoginScreen from './components/LoginScreen';
 import { api } from './services/api';
+
+const DEMO_PARTNER_USER = {
+  name: "Declan O'Sullivan",
+  role: 'Client Services Lead & Partner',
+  email: 'partner@senvo.ie',
+  organization: 'SENVO Ireland Corporate Practice',
+  jurisdiction: 'Dublin • Cork • Galway'
+};
 
 export const App: React.FC = () => {
   const [authUser, setAuthUser] = useState<any>(() => {
     try {
       const saved = localStorage.getItem('senvo_demo_auth');
-      return saved ? JSON.parse(saved).user : null;
-    } catch {
-      return null;
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.user) return parsed.user;
+      }
+    } catch {}
+    return DEMO_PARTNER_USER;
   });
 
   const [activeModule, setActiveModule] = useState<ModuleType>('overview');
@@ -65,7 +74,8 @@ export const App: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('senvo_demo_auth');
-    setAuthUser(null);
+    setAuthUser(DEMO_PARTNER_USER);
+    refreshCounts();
   };
 
   const [campaignPrefill, setCampaignPrefill] = useState<{
@@ -136,10 +146,6 @@ export const App: React.FC = () => {
   };
 
   const { title, subtitle } = getModuleTitle();
-
-  if (!authUser) {
-    return <LoginScreen onLoginSuccess={(u) => { setAuthUser(u); refreshCounts(); }} />;
-  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans">
