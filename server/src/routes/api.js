@@ -8,7 +8,7 @@ import inboxService from '../services/inboxService.js';
 import qualificationService from '../services/qualificationService.js';
 import analyticsService from '../services/analyticsService.js';
 import { checkAiHealth } from '../services/aiService.js';
-import { query, run, get } from '../db/database.js';
+import { query, run, get, isPostgres } from '../db/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { seedData } from '../db/seed.js';
 
@@ -478,7 +478,7 @@ router.get('/health', async (req, res) => {
     const aiHealth = await checkAiHealth();
     res.json({
       server: 'operational',
-      database: 'connected (SQLite persistent file)',
+      database: isPostgres ? 'connected (Supabase PostgreSQL: senvo_outreach)' : 'connected (SQLite persistent file)',
       ai: aiHealth,
       simulation_mode: true,
       timestamp: new Date().toISOString()
