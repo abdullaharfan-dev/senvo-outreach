@@ -23,10 +23,20 @@ import {
   HelpCircle,
   PhoneCall,
   XCircle,
-  FileText
+  FileText,
+  Search,
+  Filter,
+  Check,
+  Compass,
+  Briefcase
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Conversation, Message, AiAssessment, ChannelType } from '../types';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import { Badge, type BadgeVariant } from './ui/Badge';
+import { Button } from './ui/Button';
+import { ProgressBar } from './ui/ProgressBar';
+import { EmptyState } from './ui/EmptyState';
 
 interface InboxModuleProps {
   initialConversationId?: string | null;
@@ -162,7 +172,7 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
       } else if (res.ai_result?.error) {
         setLastTurnResult({
           error: res.ai_result.error,
-          message: `Gemini API quota reached (${res.ai_result.error}). Inbound turn recorded; staged for human review.`,
+          message: `Gemini API response: ${res.ai_result.error}. Inbound turn recorded; staged for manual review.`,
         });
       } else if (operationalMode === 'copilot' && res.ai_result?.data?.suggested_reply) {
         setReplyText(res.ai_result.data.suggested_reply);
@@ -244,6 +254,32 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
     }
   };
 
+  const getChannelBadgeVariant = (c: ChannelType): BadgeVariant => {
+    switch (c) {
+      case 'email':
+        return 'primary';
+      case 'linkedin':
+        return 'info';
+      case 'whatsapp':
+        return 'success';
+      case 'website':
+        return 'purple';
+      case 'sms':
+        return 'warning';
+      default:
+        return 'neutral';
+    }
+  };
+
+  const getIntentBadgeVariant = (intent?: string): BadgeVariant => {
+    if (!intent) return 'neutral';
+    if (intent.includes('meeting') || intent.includes('demo')) return 'success';
+    if (intent.includes('pricing') || intent.includes('scope')) return 'info';
+    if (intent.includes('objection')) return 'purple';
+    if (intent.includes('decline')) return 'danger';
+    return 'primary';
+  };
+
   const latestAssessment = selectedConv?.assessments?.[0];
   const isLeadHandedOff = selectedConv?.status === 'handed_off';
 
@@ -252,31 +288,31 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
     {
       id: 'scope',
       label: 'Ask Scope Details',
-      icon: <HelpCircle className="w-3 h-3 text-blue-600" />,
+      icon: <HelpCircle className="w-3.5 h-3.5 text-blue-600" />,
       prompt: `Could you clarify what is included in your statutory audit, annual return filings, and corporate tax compliance advisory packages?`,
     },
     {
       id: 'pricing',
-      label: 'Ask Pricing & Fees',
-      icon: <Zap className="w-3 h-3 text-amber-600" />,
+      label: 'Ask Pricing & Retainers',
+      icon: <Zap className="w-3.5 h-3.5 text-amber-600" />,
       prompt: `What are your fee guidelines or retainer models for ongoing Irish bookkeeping, payroll, and bi-monthly VAT compliance?`,
     },
     {
       id: 'objection',
       label: 'Raise Objection',
-      icon: <Shield className="w-3 h-3 text-purple-600" />,
+      icon: <Shield className="w-3.5 h-3.5 text-purple-600" />,
       prompt: `We already work with an established local accounting firm in Cork. Why should we consider transitioning our corporate compliance to SENVO?`,
     },
     {
       id: 'meeting',
-      label: 'Request Meeting / Demo',
-      icon: <PhoneCall className="w-3 h-3 text-emerald-600" />,
+      label: 'Request 20-Min Zoom Call',
+      icon: <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />,
       prompt: `Sounds very relevant to our expansion plans. Are you available for a 20-minute Zoom introductory call this Thursday afternoon to discuss?`,
     },
     {
       id: 'decline',
       label: 'Decline / Not Now',
-      icon: <XCircle className="w-3 h-3 text-rose-500" />,
+      icon: <XCircle className="w-3.5 h-3.5 text-rose-500" />,
       prompt: `Thank you for reaching out, but our corporate board is not evaluating external advisory or audit firms at this time.`,
     },
   ];
@@ -284,8 +320,8 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
   return (
     <div className="h-full flex flex-col overflow-hidden bg-slate-50">
       {/* Top Channel Bar */}
-      <div className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shrink-0 gap-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-medium">
+      <div className="bg-white border-b border-slate-200/90 px-3 sm:px-6 py-2.5 flex items-center justify-between shrink-0 gap-3 shadow-2xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-medium no-scrollbar">
           {[
             { id: 'all', label: 'All Channels' },
             { id: 'email', label: 'Email / Outlook' },
@@ -299,10 +335,10 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
             <button
               key={ch.id}
               onClick={() => setChannelFilter(ch.id)}
-              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all duration-150 cursor-pointer font-medium ${
                 channelFilter === ch.id
-                  ? 'bg-blue-600 text-white font-semibold'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
               }`}
             >
               {ch.label}
@@ -311,75 +347,96 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
         </div>
 
         {/* Mobile View Switcher */}
-        <div className="lg:hidden flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg shrink-0 text-xs">
+        <div className="lg:hidden flex items-center gap-1 bg-slate-100/90 p-0.5 rounded-lg shrink-0 text-xs border border-slate-200/60">
           <button
             onClick={() => setMobileTab('list')}
-            className={`px-2.5 py-1 rounded-md font-medium cursor-pointer ${
-              mobileTab === 'list' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600'
+            className={`px-2.5 py-1 rounded-md font-medium cursor-pointer transition-colors ${
+              mobileTab === 'list' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600'
             }`}
           >
             Threads
           </button>
           <button
             onClick={() => setMobileTab('chat')}
-            className={`px-2.5 py-1 rounded-md font-medium cursor-pointer ${
-              mobileTab === 'chat' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600'
+            className={`px-2.5 py-1 rounded-md font-medium cursor-pointer transition-colors ${
+              mobileTab === 'chat' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600'
             }`}
           >
             Chat
           </button>
           <button
             onClick={() => setMobileTab('details')}
-            className={`px-2.5 py-1 rounded-md font-medium cursor-pointer ${
-              mobileTab === 'details' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600'
+            className={`px-2.5 py-1 rounded-md font-medium cursor-pointer transition-colors ${
+              mobileTab === 'details' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600'
             }`}
           >
             AI Copilot
           </button>
         </div>
 
+        {/* Desktop Status Notice */}
         <div className="hidden lg:flex items-center gap-3 text-xs text-slate-500 font-medium whitespace-nowrap shrink-0">
-          <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-semibold text-slate-700">Sandbox Simulation Active</span>
-          </div>
-          <div>
-            <span>Active Threads: </span>
-            <span className="font-bold text-slate-800">{conversations.length}</span>
+          <Badge variant="success" dot size="sm">
+            Sandbox Simulation Active
+          </Badge>
+          <div className="text-slate-600 text-xs">
+            <span>Conversations: </span>
+            <span className="font-bold text-slate-900 tabular-nums">{conversations.length}</span>
           </div>
         </div>
       </div>
 
-      {/* Main 3-Column Inbox Layout */}
+      {/* Main 3-Column Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Conversation List */}
-        <div className={`w-full lg:w-80 xl:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 ${mobileTab === 'list' ? 'flex' : 'hidden lg:flex'}`}>
-          <div className="p-3 border-b border-slate-200 bg-slate-50/50 space-y-2">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filter by company, decision maker..."
-              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
-              <span>Filter Status:</span>
+        {/* Left Column: Conversation List */}
+        <div
+          className={`w-full lg:w-80 xl:w-96 bg-white border-r border-slate-200/90 flex flex-col shrink-0 ${
+            mobileTab === 'list' ? 'flex' : 'hidden lg:flex'
+          }`}
+        >
+          {/* Search & Filter Header */}
+          <div className="p-3.5 border-b border-slate-200/80 bg-slate-50/60 space-y-2.5">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search prospect, contact, city..."
+                className="w-full text-xs pl-8 pr-3 py-2 border border-slate-200 rounded-lg bg-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-2xs"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-500 px-0.5">
+              <span className="font-medium text-slate-600">Filter Status:</span>
               <div className="flex items-center gap-1 font-medium">
                 <button
                   onClick={() => setStatusFilter('all')}
-                  className={`px-2 py-0.5 rounded cursor-pointer ${statusFilter === 'all' ? 'bg-slate-200 text-slate-900 font-bold' : 'hover:bg-slate-100'}`}
+                  className={`px-2 py-0.5 rounded-md cursor-pointer transition-colors ${
+                    statusFilter === 'all'
+                      ? 'bg-slate-200 text-slate-900 font-bold'
+                      : 'hover:bg-slate-100 text-slate-600'
+                  }`}
                 >
                   All
                 </button>
                 <button
                   onClick={() => setStatusFilter('review_needed')}
-                  className={`px-2 py-0.5 rounded cursor-pointer ${statusFilter === 'review_needed' ? 'bg-amber-100 text-amber-900 font-bold' : 'hover:bg-slate-100'}`}
+                  className={`px-2 py-0.5 rounded-md cursor-pointer transition-colors ${
+                    statusFilter === 'review_needed'
+                      ? 'bg-amber-100 text-amber-900 font-bold'
+                      : 'hover:bg-slate-100 text-slate-600'
+                  }`}
                 >
                   Review
                 </button>
                 <button
                   onClick={() => setStatusFilter('handed_off')}
-                  className={`px-2 py-0.5 rounded cursor-pointer ${statusFilter === 'handed_off' ? 'bg-emerald-100 text-emerald-900 font-bold' : 'hover:bg-slate-100'}`}
+                  className={`px-2 py-0.5 rounded-md cursor-pointer transition-colors ${
+                    statusFilter === 'handed_off'
+                      ? 'bg-emerald-100 text-emerald-900 font-bold'
+                      : 'hover:bg-slate-100 text-slate-600'
+                  }`}
                 >
                   Qualified
                 </button>
@@ -387,11 +444,20 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
             </div>
           </div>
 
+          {/* Conversation List Stream */}
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
             {loading ? (
-              <div className="p-8 text-center text-slate-400 text-xs">Loading conversations...</div>
+              <div className="p-8 text-center text-slate-400 text-xs">
+                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                Loading conversations...
+              </div>
             ) : conversations.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">No conversations match criteria.</div>
+              <EmptyState
+                icon={Inbox}
+                title="No conversations found"
+                description="Try clearing your filters or send outreach from the Campaigns module."
+                className="py-12"
+              />
             ) : (
               conversations.map((c) => {
                 const isSelected = selectedConvId === c.id;
@@ -403,20 +469,22 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                       setReplyText('');
                       setMobileTab('chat');
                     }}
-                    className={`p-3.5 transition-all cursor-pointer ${
+                    className={`p-3.5 transition-all duration-150 cursor-pointer border-l-3 ${
                       isSelected
-                        ? 'bg-blue-50/70 border-l-4 border-l-blue-600'
-                        : 'hover:bg-slate-50/70'
+                        ? 'bg-blue-50/70 border-l-blue-600 shadow-2xs'
+                        : 'border-l-transparent hover:bg-slate-50/80'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-1 gap-2">
                       <div className="flex items-center gap-1.5 truncate">
-                        {getChannelIcon(c.channel)}
+                        <span className="p-1 rounded-md bg-white border border-slate-200/80 shadow-2xs shrink-0">
+                          {getChannelIcon(c.channel)}
+                        </span>
                         <span className="font-bold text-slate-900 text-xs truncate">
                           {c.company_name}
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap tabular-nums">
                         {new Date(c.last_message_at).toLocaleTimeString([], {
                           hour: '2-digit',
                           minute: '2-digit',
@@ -424,29 +492,30 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                       </span>
                     </div>
 
-                    <div className="text-[11px] text-slate-600 truncate mb-1.5 font-medium">
-                      {c.contact_name || 'Managing Director'}
+                    <div className="text-[11px] text-slate-600 truncate mb-1 font-medium flex items-center justify-between">
+                      <span className="truncate">{c.contact_name || 'Managing Director'}</span>
+                      <span className="text-[10px] text-slate-400 shrink-0 capitalize">{c.city}</span>
                     </div>
 
                     <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
                       {c.last_message || '(No messages yet)'}
                     </p>
 
-                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                    <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
                       {c.latest_intent && (
-                        <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 truncate capitalize">
+                        <Badge variant={getIntentBadgeVariant(c.latest_intent)} size="xs">
                           {c.latest_intent.replace(/_/g, ' ')}
-                        </span>
+                        </Badge>
                       )}
                       {c.status === 'review_needed' && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                        <Badge variant="warning" size="xs">
                           Review Needed
-                        </span>
+                        </Badge>
                       )}
                       {c.status === 'handed_off' && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                        <Badge variant="success" size="xs">
                           Qualified / Handed Off
-                        </span>
+                        </Badge>
                       )}
                     </div>
                   </div>
@@ -456,13 +525,17 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
           </div>
         </div>
 
-        {/* Center: Message Thread & Composer */}
-        <div className={`flex-1 flex flex-col bg-slate-50/50 overflow-hidden ${mobileTab === 'chat' ? 'flex' : 'hidden lg:flex'}`}>
+        {/* Center Column: Message Thread & Composer */}
+        <div
+          className={`flex-1 flex flex-col bg-slate-50/60 overflow-hidden ${
+            mobileTab === 'chat' ? 'flex' : 'hidden lg:flex'
+          }`}
+        >
           {selectedConv ? (
             <>
-              {/* Thread Header with Mode Switcher */}
-              <div className="px-3 sm:px-6 py-2.5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between shrink-0 shadow-2xs gap-2">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              {/* Thread Header with Operational Mode Switcher */}
+              <div className="px-4 sm:px-6 py-3 bg-white border-b border-slate-200/90 flex flex-wrap items-center justify-between shrink-0 shadow-2xs gap-3">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                   <button
                     onClick={() => setMobileTab('list')}
                     className="lg:hidden p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg shrink-0 cursor-pointer flex items-center gap-0.5 text-xs font-semibold"
@@ -472,91 +545,97 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                     <span>Threads</span>
                   </button>
 
-                  <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-700 shadow-2xs">
                     {getChannelIcon(selectedConv.channel)}
                   </div>
+
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="flex items-center gap-2">
                       <h3 className="font-bold text-slate-900 text-xs sm:text-sm truncate">
                         {selectedConv.company_name}
                       </h3>
-                      <span className="text-[9px] sm:text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">
-                        {selectedConv.channel}
-                      </span>
+                      <Badge variant={getChannelBadgeVariant(selectedConv.channel)} size="xs">
+                        {selectedConv.channel.toUpperCase()}
+                      </Badge>
                       {isLeadHandedOff && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                          <CheckCircle2 className="w-2.5 h-2.5" />
-                          <span>CRM Staged</span>
-                        </span>
+                        <Badge variant="success" size="xs">
+                          CRM Staged
+                        </Badge>
                       )}
                     </div>
-                    <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
-                      {selectedConv.contact_name} • {selectedConv.city}, Ireland
+                    <p className="text-[11px] text-slate-500 truncate">
+                      {selectedConv.contact_name || 'Managing Director'} • {selectedConv.city}, Ireland
                     </p>
                   </div>
                 </div>
 
-                {/* Operating Mode Selector Pill */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+                {/* Operating Mode Pill Switcher */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs shadow-2xs">
                     <button
                       onClick={() => setOperationalMode('autonomous')}
-                      className={`px-2.5 py-1 rounded-md font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                         operationalMode === 'autonomous'
-                          ? 'bg-blue-600 text-white shadow-2xs'
+                          ? 'bg-blue-600 text-white shadow-xs'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
-                      title="Autonomous AI SDR: AI replies automatically and auto-qualifies meeting requests"
+                      title="Autonomous AI SDR: Replies automatically & auto-qualifies meeting requests"
                     >
                       <Bot className="w-3.5 h-3.5" />
-                      <span className="text-[11px]">Autonomous SDR</span>
+                      <span className="text-[11px]">Autonomous AI SDR</span>
                     </button>
                     <button
                       onClick={() => setOperationalMode('copilot')}
-                      className={`px-2.5 py-1 rounded-md font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                         operationalMode === 'copilot'
-                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          ? 'bg-indigo-600 text-white shadow-xs'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
-                      title="Human Co-Pilot: AI prepares draft suggestions in Copilot panel for manual review"
+                      title="Human Co-Pilot: Prepares draft suggestions in Copilot panel for manual review"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       <span className="text-[11px]">Human Co-Pilot</span>
                     </button>
                   </div>
 
-                  <button
+                  <Button
+                    variant="outline"
+                    size="xs"
                     onClick={() => setMobileTab('details')}
-                    className="lg:hidden px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                    className="lg:hidden"
+                    leftIcon={<Sparkles className="w-3.5 h-3.5 text-blue-600" />}
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Copilot</span>
-                  </button>
+                    Copilot
+                  </Button>
                 </div>
               </div>
 
               {/* Multi-Turn Scenario Test Bar */}
-              <div className="bg-slate-100/90 border-b border-slate-200 px-3 sm:px-6 py-2 shrink-0">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
-                    <Sparkles className="w-3 h-3 text-blue-600" />
-                    <span>Simulate Prospect Turn ({operationalMode === 'autonomous' ? 'Autonomous SDR Responds' : 'Co-Pilot Stages Draft'}):</span>
+              <div className="bg-slate-100/90 border-b border-slate-200/80 px-4 sm:px-6 py-2.5 shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    <span>
+                      Simulate Prospect Inbound Turn (
+                      {operationalMode === 'autonomous' ? 'AI SDR Auto-Responds' : 'Co-Pilot Stages Draft'}
+                      ):
+                    </span>
                   </div>
                   {simulatingTurn && (
-                    <span className="text-[11px] text-blue-600 font-semibold flex items-center gap-1 animate-pulse">
-                      <Clock className="w-3 h-3" />
+                    <span className="text-xs text-blue-600 font-medium flex items-center gap-1.5 animate-pulse">
+                      <Clock className="w-3.5 h-3.5" />
                       Processing scenario turn...
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
                   {scenarios.map((sc) => (
                     <button
                       key={sc.id}
                       disabled={simulatingTurn}
                       onClick={() => handleSimulateScenario(sc.prompt, sc.label)}
-                      className="px-2.5 py-1 rounded-md bg-white hover:bg-blue-50 border border-slate-200 text-slate-700 font-medium whitespace-nowrap shadow-2xs hover:border-blue-300 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-[11px]"
+                      className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-blue-50/80 border border-slate-200 text-slate-700 font-medium whitespace-nowrap shadow-2xs hover:border-blue-300 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-[11px]"
                     >
                       {sc.icon}
                       <span>{sc.label}</span>
@@ -568,9 +647,9 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                       const custom = window.prompt('Enter simulated prospect inbound message:');
                       if (custom) handleSimulateScenario(custom, 'Custom Inbound');
                     }}
-                    className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-medium whitespace-nowrap text-[11px] cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-medium whitespace-nowrap text-[11px] cursor-pointer shadow-2xs"
                   >
-                    + Custom Turn...
+                    + Custom Inbound...
                   </button>
                 </div>
               </div>
@@ -578,12 +657,12 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
               {/* Status Notice Banner if Turn Completed */}
               {lastTurnResult && (
                 <div
-                  className={`px-4 py-2 text-xs flex items-center justify-between shrink-0 ${
+                  className={`px-4 sm:px-6 py-2.5 text-xs flex items-center justify-between shrink-0 border-b ${
                     lastTurnResult.autoQualified
-                      ? 'bg-emerald-50 text-emerald-900 border-b border-emerald-200'
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
                       : lastTurnResult.error
-                      ? 'bg-amber-50 text-amber-900 border-b border-amber-200'
-                      : 'bg-blue-50 text-blue-900 border-b border-blue-200'
+                      ? 'bg-amber-50 text-amber-900 border-amber-200'
+                      : 'bg-blue-50 text-blue-900 border-blue-200'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -594,13 +673,13 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                     ) : (
                       <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
                     )}
-                    <span className="font-medium">{lastTurnResult.message}</span>
+                    <span className="font-medium leading-relaxed">{lastTurnResult.message}</span>
                   </div>
 
                   {lastTurnResult.autoQualified && (
                     <button
                       onClick={onNavigateToQualified}
-                      className="text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer shrink-0 ml-2"
+                      className="text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer shrink-0 ml-3"
                     >
                       View in Qualified Leads &rarr;
                     </button>
@@ -608,8 +687,8 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                 </div>
               )}
 
-              {/* Message History Bubble Stream */}
-              <div className="flex-1 p-3.5 sm:p-6 overflow-y-auto space-y-4">
+              {/* Message Bubble History Stream */}
+              <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
                 {selectedConv.messages?.map((msg) => {
                   const isInbound = msg.direction === 'inbound';
                   return (
@@ -619,7 +698,10 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                     >
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-1 px-1">
                         {isInbound ? (
-                          <span className="font-semibold text-slate-700">{msg.sender_name}</span>
+                          <span className="font-semibold text-slate-700 flex items-center gap-1">
+                            <User className="w-3 h-3 text-slate-400" />
+                            {msg.sender_name}
+                          </span>
                         ) : (
                           <span className="font-semibold text-blue-700 flex items-center gap-1">
                             {msg.is_ai_generated ? (
@@ -628,12 +710,15 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                                 <span>SENVO AI Client Advisory (Simulated)</span>
                               </>
                             ) : (
-                              <span>SENVO Advisory Team (Manual)</span>
+                              <>
+                                <User className="w-3 h-3 text-slate-600" />
+                                <span>SENVO Advisory Team (Manual)</span>
+                              </>
                             )}
                           </span>
                         )}
                         <span>•</span>
-                        <span>
+                        <span className="tabular-nums">
                           {new Date(msg.created_at).toLocaleTimeString([], {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -642,11 +727,11 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                       </div>
 
                       <div
-                        className={`max-w-[88%] sm:max-w-lg p-3 sm:p-3.5 rounded-2xl text-xs leading-relaxed font-sans shadow-2xs whitespace-pre-line ${
+                        className={`max-w-[88%] sm:max-w-lg p-3.5 sm:p-4 rounded-2xl text-xs leading-relaxed font-sans shadow-card whitespace-pre-line ${
                           isInbound
                             ? 'bg-white border border-slate-200 text-slate-800 rounded-tl-xs'
                             : msg.is_ai_generated
-                            ? 'bg-blue-600 text-white rounded-tr-xs shadow-blue-500/10'
+                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-xs shadow-blue-500/10'
                             : 'bg-slate-900 text-white rounded-tr-xs'
                         }`}
                       >
@@ -658,17 +743,19 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Outbound Reply Composer */}
-              <div className="p-3 sm:p-4 bg-white border-t border-slate-200 shrink-0 space-y-2">
+              {/* Outbound Response Composer */}
+              <div className="p-3.5 sm:p-4 bg-white border-t border-slate-200 shrink-0 space-y-2.5">
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-700">Manual Response Composer</span>
-                    <span className="text-[10px] text-slate-400 font-mono">Channel: {selectedConv.channel}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      Outbound Channel: {selectedConv.channel}
+                    </span>
                   </div>
                   {latestAssessment?.suggested_reply && (
                     <button
                       onClick={() => setReplyText(latestAssessment.suggested_reply)}
-                      className="text-blue-600 hover:text-blue-800 font-semibold text-xs flex items-center gap-1 cursor-pointer"
+                      className="text-blue-600 hover:text-blue-800 font-semibold text-xs flex items-center gap-1 cursor-pointer transition-colors"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>Insert AI Copilot Draft</span>
@@ -681,31 +768,41 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                     rows={3}
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Type an outbound response to dispatch to prospect..."
-                    className="w-full text-xs border border-slate-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans pb-11 sm:pb-3 sm:pr-32"
+                    placeholder="Type an outbound corporate response to dispatch to prospect..."
+                    className="w-full text-xs border border-slate-300 rounded-xl p-3 focus:outline-hidden focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans pb-11 sm:pb-3 sm:pr-32 shadow-2xs"
                   />
-                  <div className="absolute right-2 bottom-2.5 flex items-center gap-1.5">
-                    <button
+                  <div className="absolute right-2.5 bottom-2.5 flex items-center gap-1.5">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      isLoading={sending}
+                      disabled={!replyText.trim()}
                       onClick={() => handleSendReply(false)}
-                      disabled={sending || !replyText.trim()}
-                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                      leftIcon={<Send className="w-3 h-3" />}
                     >
-                      <Send className="w-3 h-3" />
-                      <span>{sending ? 'Sending...' : 'Send Reply'}</span>
-                    </button>
+                      Send Reply
+                    </Button>
                   </div>
                 </div>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-400 text-xs p-6 text-center">
-              Select a conversation to view thread history and qualification analysis.
-            </div>
+            <EmptyState
+              icon={Inbox}
+              title="Select a Conversation"
+              description="Choose a prospect from the left thread list to view conversation history and qualification intelligence."
+              className="m-auto"
+            />
           )}
         </div>
 
-        {/* Right: AI Reply Co-Pilot & Lead Intelligence Panel */}
-        <div className={`w-full lg:w-80 xl:w-96 bg-white border-l border-slate-200 overflow-y-auto p-4 sm:p-5 space-y-4 shrink-0 ${mobileTab === 'details' ? 'block' : 'hidden lg:block'}`}>
+        {/* Right Column: AI Reply Co-Pilot & Lead Intelligence Panel */}
+        <div
+          className={`w-full lg:w-80 xl:w-96 bg-white border-l border-slate-200 overflow-y-auto p-4 sm:p-5 space-y-4 shrink-0 ${
+            mobileTab === 'details' ? 'block' : 'hidden lg:block'
+          }`}
+        >
+          {/* Mobile Back Button */}
           <div className="lg:hidden pb-3 border-b border-slate-100 flex items-center justify-between">
             <button
               onClick={() => setMobileTab('chat')}
@@ -719,35 +816,36 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
 
           {selectedConv && (
             <>
-              {/* Prospect Profile Header */}
-              <div className="space-y-3 pb-3 border-b border-slate-100">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              {/* Prospect Profile Header Card */}
+              <Card className="border-slate-200/90 shadow-2xs">
+                <CardHeader className="py-3 px-4 border-b border-slate-100">
+                  <CardTitle className="text-xs uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <Building2 className="w-3.5 h-3.5 text-slate-500" />
                     <span>Prospect Profile</span>
-                  </h4>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 uppercase">
+                  </CardTitle>
+                  <Badge variant="primary" size="xs">
                     {selectedConv.priority} Priority
-                  </span>
-                </div>
-
-                <div className="space-y-1.5 text-xs">
+                  </Badge>
+                </CardHeader>
+                <CardContent className="p-4 space-y-2 text-xs">
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Entity</span>
-                    <span className="font-bold text-slate-800">{selectedConv.company_name}</span>
+                    <span className="font-bold text-slate-900 text-xs">{selectedConv.company_name}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Contact</span>
+                    <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Primary Contact</span>
                     <span className="text-slate-700 font-medium">
                       {selectedConv.contact_name || 'Managing Director'}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Sector & Region</span>
-                    <span className="text-slate-700">{selectedConv.industry} • {selectedConv.city}, Ireland</span>
+                    <span className="text-slate-600">
+                      {selectedConv.industry} • {selectedConv.city}, Ireland
+                    </span>
                   </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
 
               {/* AI Reply Co-Pilot Panel */}
               <div className="space-y-3.5">
@@ -756,124 +854,137 @@ export const InboxModule: React.FC<InboxModuleProps> = ({
                     <Sparkles className="w-4 h-4 text-blue-600" />
                     <span>AI Reply Co-Pilot</span>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    operationalMode === 'autonomous' ? 'bg-blue-100 text-blue-800' : 'bg-indigo-100 text-indigo-800'
-                  }`}>
+                  <Badge
+                    variant={operationalMode === 'autonomous' ? 'primary' : 'purple'}
+                    size="xs"
+                  >
                     {operationalMode === 'autonomous' ? 'Autonomous Mode' : 'Human Review Mode'}
-                  </span>
+                  </Badge>
                 </div>
 
                 {latestAssessment ? (
-                  <div className="space-y-3 p-3.5 rounded-xl bg-gradient-to-br from-blue-50/70 to-indigo-50/50 border border-blue-200 shadow-2xs">
-                    {/* Intent & Confidence */}
-                    <div className="flex items-center justify-between">
+                  <Card className="border-blue-200/80 bg-gradient-to-br from-blue-50/60 to-indigo-50/40 shadow-2xs">
+                    <CardContent className="p-4 space-y-3">
+                      {/* Intent & Confidence Meter */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-600 font-medium text-[11px]">
+                            Intent: <strong className="text-blue-900 capitalize">{latestAssessment.intent.replace(/_/g, ' ')}</strong>
+                          </span>
+                          <span className="text-emerald-700 font-bold text-[11px] tabular-nums">
+                            {(latestAssessment.confidence * 100).toFixed(0)}% Match
+                          </span>
+                        </div>
+                        <ProgressBar
+                          value={latestAssessment.confidence * 100}
+                          color="emerald"
+                          size="sm"
+                        />
+                      </div>
+
+                      {/* Requested Service Line */}
                       <div className="text-[11px]">
-                        <span className="text-slate-500 font-medium">Intent: </span>
-                        <span className="font-bold text-blue-900 capitalize">
-                          {latestAssessment.intent.replace(/_/g, ' ')}
+                        <span className="text-slate-500 font-medium">Service Line: </span>
+                        <span className="font-semibold text-slate-800">
+                          {latestAssessment.requested_service}
                         </span>
                       </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                        {(latestAssessment.confidence * 100).toFixed(0)}% Match
-                      </span>
-                    </div>
 
-                    {/* Requested Service Line */}
-                    <div className="text-[11px]">
-                      <span className="text-slate-500 font-medium">Service Line: </span>
-                      <span className="font-semibold text-slate-800">
-                        {latestAssessment.requested_service}
-                      </span>
-                    </div>
-
-                    {/* Requirement Summary */}
-                    <div className="text-xs bg-white/80 p-2.5 rounded-lg border border-blue-100/80 leading-relaxed text-slate-700">
-                      <span className="font-semibold text-slate-900 block mb-0.5 text-[11px]">
-                        Conversation Summary:
-                      </span>
-                      {latestAssessment.summary}
-                    </div>
-
-                    {/* Recommended Next Action */}
-                    <div className="text-xs bg-blue-100/60 p-2.5 rounded-lg border border-blue-200/60 leading-relaxed text-blue-950">
-                      <span className="font-bold text-blue-900 block mb-0.5 text-[11px]">
-                        Recommended Next Action:
-                      </span>
-                      {latestAssessment.suggested_next_action}
-                    </div>
-
-                    {/* Suggested Reply Draft */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-700 text-[11px]">
-                          Suggested Response Draft:
+                      {/* Conversation Summary Box */}
+                      <div className="text-xs bg-white/90 p-3 rounded-lg border border-blue-100/90 leading-relaxed text-slate-700 shadow-2xs">
+                        <span className="font-bold text-slate-900 block mb-0.5 text-[11px]">
+                          Executive Context Summary:
                         </span>
-                        <button
-                          onClick={handleRegenerateAssessment}
-                          disabled={reassessing}
-                          className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                        >
-                          <RotateCcw className={`w-3 h-3 ${reassessing ? 'animate-spin' : ''}`} />
-                          <span>Regenerate</span>
-                        </button>
+                        {latestAssessment.summary}
                       </div>
 
-                      <p className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed font-sans italic">
-                        "{latestAssessment.suggested_reply}"
-                      </p>
-
-                      <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                        <button
-                          onClick={() => setReplyText(latestAssessment.suggested_reply)}
-                          className="flex-1 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-center"
-                        >
-                          Load to Composer
-                        </button>
-                        <button
-                          onClick={async () => {
-                            await handleSendReply(true, latestAssessment.suggested_reply);
-                          }}
-                          className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer text-center"
-                        >
-                          Send as AI Reply
-                        </button>
+                      {/* Recommended Next Action */}
+                      <div className="text-xs bg-blue-100/70 p-3 rounded-lg border border-blue-200/70 leading-relaxed text-blue-950 shadow-2xs">
+                        <span className="font-bold text-blue-900 block mb-0.5 text-[11px]">
+                          Recommended Next Action:
+                        </span>
+                        {latestAssessment.suggested_next_action}
                       </div>
-                    </div>
 
-                    {/* Lead Qualification CTA */}
-                    <div className="pt-2 border-t border-blue-200/60">
-                      {isLeadHandedOff ? (
-                        <div className="p-2 rounded-lg bg-emerald-100/80 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            <span>Staged for Bitrix24 Handoff</span>
+                      {/* Suggested Response Draft */}
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-700 text-[11px]">
+                            Suggested Response Draft:
                           </span>
                           <button
-                            onClick={onNavigateToQualified}
-                            className="text-emerald-800 underline text-[11px] cursor-pointer"
+                            onClick={handleRegenerateAssessment}
+                            disabled={reassessing}
+                            className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-colors"
                           >
-                            View &rarr;
+                            <RotateCcw className={`w-3 h-3 ${reassessing ? 'animate-spin' : ''}`} />
+                            <span>Regenerate</span>
                           </button>
                         </div>
-                      ) : (
-                        <button
-                          onClick={handleQualifyLead}
-                          className="w-full py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Award className="w-3.5 h-3.5" />
-                          <span>Qualify & Stage CRM Handoff</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
+
+                        <p className="text-xs text-slate-700 bg-white p-3 rounded-lg border border-slate-200 leading-relaxed font-sans italic shadow-2xs">
+                          "{latestAssessment.suggested_reply}"
+                        </p>
+
+                        <div className="flex flex-col sm:flex-row gap-2 pt-1.5">
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => setReplyText(latestAssessment.suggested_reply)}
+                            className="flex-1"
+                          >
+                            Load to Composer
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="xs"
+                            onClick={async () => {
+                              await handleSendReply(true, latestAssessment.suggested_reply);
+                            }}
+                            className="flex-1"
+                          >
+                            Send as AI Reply
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Lead Qualification & CRM Handoff CTA */}
+                      <div className="pt-2.5 border-t border-blue-200/80">
+                        {isLeadHandedOff ? (
+                          <div className="p-2.5 rounded-lg bg-emerald-100/90 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-2xs">
+                            <span className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              <span>Staged for Bitrix24 Handoff</span>
+                            </span>
+                            <button
+                              onClick={onNavigateToQualified}
+                              className="text-emerald-800 underline text-[11px] cursor-pointer font-bold"
+                            >
+                              View &rarr;
+                            </button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="success"
+                            size="sm"
+                            onClick={handleQualifyLead}
+                            className="w-full"
+                            leftIcon={<Award className="w-3.5 h-3.5" />}
+                          >
+                            Qualify & Stage CRM Handoff
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 ) : (
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500 space-y-2">
+                  <Card className="border-slate-200/90 bg-slate-50/50 p-5 text-center text-xs space-y-2">
                     <Bot className="w-6 h-6 text-slate-400 mx-auto" />
                     <p className="font-semibold text-slate-700">Awaiting Inbound Prospect Message</p>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
                       Use the scenario test buttons above to simulate prospect turns (e.g. Scope, Pricing, Objection, Meeting Request). SENVO AI Copilot will classify intent and prepare follow-ups grounded in approved Irish corporate policies.
                     </p>
-                  </div>
+                  </Card>
                 )}
               </div>
             </>

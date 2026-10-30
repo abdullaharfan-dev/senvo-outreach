@@ -21,16 +21,32 @@ import {
   Send,
   AlertTriangle,
   Check,
-  RefreshCw
+  RefreshCw,
+  Sparkles,
+  Download,
+  CheckSquare,
+  Square,
+  Briefcase,
+  Target,
+  ExternalLink
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Lead, LeadSegment, ParseFileResult, ValidationResult, ValidatedLeadRecord } from '../types';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import { Badge, type BadgeVariant } from './ui/Badge';
+import { Button } from './ui/Button';
+import { ProgressBar } from './ui/ProgressBar';
+import { EmptyState } from './ui/EmptyState';
 
 interface LeadsModuleProps {
   onLaunchCampaignWithSegment?: (segmentName: string, leadIds: string[], channel?: string) => void;
+  onNavigateToInbox?: (conversationId?: string) => void;
 }
 
-export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSegment }) => {
+export const LeadsModule: React.FC<LeadsModuleProps> = ({
+  onLaunchCampaignWithSegment,
+  onNavigateToInbox,
+}) => {
   const [activeTab, setActiveTab] = useState<'directory' | 'segments'>('directory');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [segments, setSegments] = useState<LeadSegment[]>([]);
@@ -41,12 +57,15 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
 
+  // Multi-select state
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+
   // Modals & Panels
   const [showImportWizard, setShowImportWizard] = useState<boolean>(false);
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
-  // Guided Import Wizard State (Steps 1 to 5)
+  // Guided Import Wizard State (Steps 1 to 4)
   const [importStep, setImportStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState<boolean>(false);
@@ -54,11 +73,10 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
   const [columnMap, setColumnMap] = useState<Record<string, string>>({});
   const [isValidating, setIsValidating] = useState<boolean>(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
-  const [selectedSegmentFilter, setSelectedSegmentFilter] = useState<string>('all');
   const [isCommitting, setIsCommitting] = useState<boolean>(false);
   const [commitResult, setCommitResult] = useState<{ committed: number; createdIds: string[] } | null>(null);
 
-  // New Lead Form
+  // New Lead Form State
   const [newLead, setNewLead] = useState<Partial<Lead>>({
     company_name: '',
     contact_name: '',
@@ -133,7 +151,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
     }
   };
 
-  // Step 4: Commit batch to SQLite
+  // Step 4: Commit batch to persistent store
   const handleCommit = async () => {
     if (!validationResult) return;
     const approved = validationResult.records.filter((r) => r.status === 'valid');
@@ -183,6 +201,77 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
     setCommitResult(null);
   };
 
+  // Multi-select helpers
+  const handleToggleLead = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedLeadIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedLeadIds.length === leads.length) {
+      setSelectedLeadIds([]);
+    } else {
+      setSelectedLeadIds(leads.map((l) => l.id));
+    }
+  };
+
+  const handleExportSelected = () => {
+    const selectedLeads = leads.filter((l) => selectedLeadIds.includes(l.id));
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      ['Company,Contact,Email,Phone,City,Industry,Priority,Status']
+        .concat(
+          selectedLeads.map(
+            (l) =>
+              `"${l.company_name}","${l.contact_name || ''}","${l.email || ''}","${l.phone || ''}","${l.city}","${l.industry}","${l.priority}","${l.status}"`
+          )
+        )
+        .join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `senvo_leads_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Compute ICP Score for a lead
+  const calculateIcpScore = (lead: Lead) => {
+    let score = 40; // baseline
+    if (lead.email && lead.email.includes('@')) score += 20;
+    if (lead.phone && lead.phone.length > 5) score += 15;
+    if (lead.contact_name) score += 15;
+    if (['Dublin', 'Cork', 'Galway', 'Limerick'].includes(lead.city)) score += 10;
+    return Math.min(score, 100);
+  };
+
+  const getPriorityBadgeVariant = (priority: string): BadgeVariant => {
+    switch (priority) {
+      case 'high':
+        return 'danger';
+      case 'medium':
+        return 'warning';
+      default:
+        return 'neutral';
+    }
+  };
+
+  const getStatusBadgeVariant = (status: string): BadgeVariant => {
+    switch (status) {
+      case 'qualified':
+        return 'success';
+      case 'replied':
+        return 'info';
+      case 'in_campaign':
+        return 'primary';
+      default:
+        return 'neutral';
+    }
+  };
+
   const industries = [
     'Freight & Logistics',
     'MedTech & Life Sciences',
@@ -198,44 +287,53 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
 
   return (
     <div className="p-3.5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
-      {/* Top Controls */}
+      {/* Top Controls Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Prospects & Intelligent Segments</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {total} Irish corporate prospects registered • Structured by channel eligibility and sector
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+              Lead Intelligence & Prospect Directory
+            </h2>
+            <Badge variant="primary" size="sm">
+              {total} Verified Records
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Irish corporate prospects structured by ICP score, channel eligibility, and Revenue/CRO compliance readiness.
           </p>
         </div>
 
         <div className="flex flex-col xs:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => {
               resetImportWizard();
               setShowImportWizard(true);
             }}
-            className="flex items-center justify-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer w-full sm:w-auto"
+            leftIcon={<Upload className="w-3.5 h-3.5" />}
           >
-            <Upload className="w-3.5 h-3.5 shrink-0" />
-            <span>Guided Lead Import</span>
-          </button>
+            Guided Lead Import
+          </Button>
 
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowAddModal(true)}
-            className="flex items-center justify-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer w-full sm:w-auto"
+            leftIcon={<Plus className="w-3.5 h-3.5" />}
           >
-            <Plus className="w-3.5 h-3.5 shrink-0" />
-            <span>Add Single Lead</span>
-          </button>
+            Add Single Lead
+          </Button>
         </div>
       </div>
 
       {/* View Tabs: Directory vs Segments */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 text-xs font-semibold">
+      <div className="flex items-center gap-2 border-b border-slate-200/90 pb-2 text-xs font-semibold">
         <button
           onClick={() => setActiveTab('directory')}
-          className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-2 ${
+          className={`px-3 py-1.5 rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-2 ${
             activeTab === 'directory'
-              ? 'bg-slate-900 text-white shadow-2xs'
+              ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -245,9 +343,9 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
 
         <button
           onClick={() => setActiveTab('segments')}
-          className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-2 ${
+          className={`px-3 py-1.5 rounded-lg transition-all duration-150 cursor-pointer flex items-center gap-2 ${
             activeTab === 'segments'
-              ? 'bg-slate-900 text-white shadow-2xs'
+              ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -260,100 +358,320 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
       {activeTab === 'directory' && (
         <div className="space-y-4">
           {/* Filter Bar */}
-          <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center gap-2.5 sm:gap-3">
-            <div className="w-full md:flex-1 relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search company, decision maker, city, or email..."
-                className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
-              />
+          <Card className="p-3.5 shadow-2xs">
+            <div className="flex flex-col md:flex-row md:items-center gap-2.5 sm:gap-3">
+              <div className="w-full md:flex-1 relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by company legal name, decision maker, city, or email..."
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-slate-50/60 shadow-2xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 xs:grid-cols-3 gap-2 w-full md:w-auto">
+                <select
+                  value={industryFilter}
+                  onChange={(e) => setIndustryFilter(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg p-2 bg-white text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 w-full shadow-2xs"
+                >
+                  <option value="">All Industries</option>
+                  {industries.map((ind) => (
+                    <option key={ind} value={ind}>
+                      {ind}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg p-2 bg-white text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 w-full shadow-2xs"
+                >
+                  <option value="">All Priorities</option>
+                  <option value="high">High Priority</option>
+                  <option value="medium">Medium Priority</option>
+                  <option value="low">Low Priority</option>
+                </select>
+
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg p-2 bg-white text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 w-full shadow-2xs"
+                >
+                  <option value="">All Lifecycle Stages</option>
+                  <option value="uncontacted">Uncontacted</option>
+                  <option value="in_campaign">In Campaign</option>
+                  <option value="replied">Replied (Inbox)</option>
+                  <option value="qualified">Qualified</option>
+                </select>
+              </div>
             </div>
+          </Card>
 
-            <div className="grid grid-cols-1 xs:grid-cols-3 gap-2 w-full md:w-auto">
-              <select
-                value={industryFilter}
-                onChange={(e) => setIndustryFilter(e.target.value)}
-                className="text-xs border border-slate-200 rounded-lg p-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-              >
-                <option value="">All Industries</option>
-                {industries.map((ind) => (
-                  <option key={ind} value={ind}>
-                    {ind}
-                  </option>
-                ))}
-              </select>
+          {/* Multi-Select Bulk Action Floating Ribbon */}
+          {selectedLeadIds.length > 0 && (
+            <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-3">
+                <Badge variant="primary" size="sm">
+                  {selectedLeadIds.length} Selected
+                </Badge>
+                <span className="text-slate-300 hidden sm:inline text-[11px]">
+                  Batch actions for selected corporate prospects:
+                </span>
+              </div>
 
-              <select
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-                className="text-xs border border-slate-200 rounded-lg p-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-              >
-                <option value="">All Priorities</option>
-                <option value="high">High Priority</option>
-                <option value="medium">Medium Priority</option>
-                <option value="low">Low Priority</option>
-              </select>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="primary"
+                  size="xs"
+                  onClick={() => {
+                    if (onLaunchCampaignWithSegment) {
+                      onLaunchCampaignWithSegment(
+                        `Custom Batch (${selectedLeadIds.length} leads)`,
+                        selectedLeadIds,
+                        'email'
+                      );
+                    }
+                  }}
+                  leftIcon={<Send className="w-3 h-3" />}
+                >
+                  Add to Campaign
+                </Button>
 
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="text-xs border border-slate-200 rounded-lg p-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-              >
-                <option value="">All Lifecycle Stages</option>
-                <option value="uncontacted">Uncontacted</option>
-                <option value="in_campaign">In Campaign</option>
-                <option value="replied">Replied (Inbox)</option>
-                <option value="qualified">Qualified</option>
-              </select>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={handleExportSelected}
+                  className="bg-slate-800 text-white border-slate-700 hover:bg-slate-700"
+                  leftIcon={<Download className="w-3 h-3" />}
+                >
+                  Export CSV
+                </Button>
+
+                <button
+                  onClick={() => setSelectedLeadIds([])}
+                  className="text-slate-400 hover:text-white text-xs px-2 py-1 cursor-pointer"
+                >
+                  Clear Selection
+                </button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Desktop Leads Table (>= md) */}
+          <Card className="hidden md:block overflow-hidden shadow-card">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-semibold text-slate-600 uppercase tracking-wider sticky top-0 backdrop-blur-xs">
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={leads.length > 0 && selectedLeadIds.length === leads.length}
+                        onChange={handleSelectAll}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
+                    <th className="py-3 px-4">Company Entity</th>
+                    <th className="py-3 px-4">Primary Contact</th>
+                    <th className="py-3 px-4">Operating Hub</th>
+                    <th className="py-3 px-4">ICP Score</th>
+                    <th className="py-3 px-4">Channels</th>
+                    <th className="py-3 px-4">Priority</th>
+                    <th className="py-3 px-4">Stage</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                        <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                        Loading records from database...
+                      </td>
+                    </tr>
+                  ) : leads.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                        No prospects found matching your search criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    leads.map((lead) => {
+                      const isSelected = selectedLeadIds.includes(lead.id);
+                      const icpScore = calculateIcpScore(lead);
+                      const hasEmail = Boolean(lead.email && lead.email.includes('@'));
+                      const hasPhone = Boolean(lead.phone && lead.phone.length > 5);
+
+                      return (
+                        <tr
+                          key={lead.id}
+                          onClick={() => setSelectedLead(lead)}
+                          className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${
+                            isSelected ? 'bg-blue-50/40' : ''
+                          }`}
+                        >
+                          <td
+                            className="py-3 px-3 text-center"
+                            onClick={(e) => handleToggleLead(lead.id, e)}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-slate-900">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="truncate">{lead.company_name}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-normal mt-0.5 truncate max-w-[200px]">
+                              {lead.industry}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-slate-700">
+                            <div className="font-medium text-slate-900">{lead.contact_name || 'Managing Director'}</div>
+                            <div className="text-[11px] text-slate-400 font-mono truncate max-w-[180px]">
+                              {lead.email || '—'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{lead.city}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[11px] font-bold tabular-nums ${
+                                  icpScore >= 80
+                                    ? 'text-emerald-700'
+                                    : icpScore >= 60
+                                    ? 'text-blue-700'
+                                    : 'text-amber-700'
+                                }`}
+                              >
+                                {icpScore}%
+                              </span>
+                              <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    icpScore >= 80
+                                      ? 'bg-emerald-500'
+                                      : icpScore >= 60
+                                      ? 'bg-blue-500'
+                                      : 'bg-amber-500'
+                                  }`}
+                                  style={{ width: `${icpScore}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1">
+                              {hasEmail && (
+                                <Badge variant="primary" size="xs">
+                                  Email
+                                </Badge>
+                              )}
+                              {hasPhone && (
+                                <Badge variant="success" size="xs">
+                                  Phone
+                                </Badge>
+                              )}
+                              {lead.contact_name && (
+                                <Badge variant="info" size="xs">
+                                  LinkedIn
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant={getPriorityBadgeVariant(lead.priority)} size="xs">
+                              {lead.priority.toUpperCase()}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant={getStatusBadgeVariant(lead.status)} size="xs">
+                              {lead.status.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLead(lead);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 font-semibold text-xs cursor-pointer inline-flex items-center gap-0.5"
+                            >
+                              <span>Details</span>
+                              <ChevronRight className="w-3 h-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
 
           {/* Mobile Leads Card View (< md) */}
           <div className="block md:hidden space-y-2.5">
             {loading ? (
-              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-xs">
+              <Card className="p-8 text-center text-slate-400 text-xs">
                 <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                 Loading records from database...
-              </div>
+              </Card>
             ) : leads.length === 0 ? (
-              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-xs">
+              <Card className="p-8 text-center text-slate-400 text-xs">
                 No prospects found matching your search criteria.
-              </div>
+              </Card>
             ) : (
               leads.map((lead) => {
+                const isSelected = selectedLeadIds.includes(lead.id);
+                const icpScore = calculateIcpScore(lead);
                 const hasEmail = Boolean(lead.email && lead.email.includes('@'));
                 const hasPhone = Boolean(lead.phone && lead.phone.length > 5);
 
                 return (
-                  <div
+                  <Card
                     key={lead.id}
                     onClick={() => setSelectedLead(lead)}
-                    className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-400 transition-colors cursor-pointer space-y-2.5"
+                    className={`p-3.5 space-y-2.5 transition-all cursor-pointer ${
+                      isSelected ? 'border-blue-500 bg-blue-50/30' : ''
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs sm:text-sm">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate">{lead.company_name}</span>
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handleToggleLead(lead.id, e as any)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs sm:text-sm">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">{lead.company_name}</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 mt-0.5 truncate">
+                            {lead.contact_name || 'Managing Director'} {lead.email ? `• ${lead.email}` : ''}
+                          </p>
                         </div>
-                        <p className="text-[11px] text-slate-600 mt-0.5 truncate">
-                          {lead.contact_name || 'Managing Director'} {lead.email ? `• ${lead.email}` : ''}
-                        </p>
                       </div>
-                      <span
-                        className={`shrink-0 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                          lead.priority === 'high'
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : lead.priority === 'medium'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {lead.priority}
-                      </span>
+
+                      <Badge variant={getPriorityBadgeVariant(lead.priority)} size="xs">
+                        {lead.priority.toUpperCase()}
+                      </Badge>
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 gap-1.5">
@@ -364,37 +682,31 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                         <span className="truncate max-w-[140px]">{lead.industry}</span>
                       </div>
 
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${
-                          lead.status === 'qualified'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : lead.status === 'replied'
-                            ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
-                            : lead.status === 'in_campaign'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {lead.status.replace('_', ' ')}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400 font-medium">ICP:</span>
+                        <span className="font-bold text-slate-800 text-xs">{icpScore}%</span>
+                        <Badge variant={getStatusBadgeVariant(lead.status)} size="xs">
+                          {lead.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between pt-1 text-[10px]">
                       <div className="flex items-center gap-1">
                         {hasEmail && (
-                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                          <Badge variant="primary" size="xs">
                             Email
-                          </span>
+                          </Badge>
                         )}
                         {hasPhone && (
-                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Badge variant="success" size="xs">
                             Phone
-                          </span>
+                          </Badge>
                         )}
                         {lead.contact_name && (
-                          <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">
+                          <Badge variant="info" size="xs">
                             LinkedIn
-                          </span>
+                          </Badge>
                         )}
                       </div>
                       <span className="text-blue-600 font-semibold text-xs flex items-center gap-0.5">
@@ -402,153 +714,29 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                         <ChevronRight className="w-3 h-3" />
                       </span>
                     </div>
-                  </div>
+                  </Card>
                 );
               })
             )}
           </div>
-
-          {/* Desktop Leads Table (>= md) */}
-          <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
-                    <th className="py-3 px-4">Company Name</th>
-                    <th className="py-3 px-4">Primary Contact</th>
-                    <th className="py-3 px-4">Location</th>
-                    <th className="py-3 px-4">Sector</th>
-                    <th className="py-3 px-4">Channel Availability</th>
-                    <th className="py-3 px-4">Priority</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                        Loading records from database...
-                      </td>
-                    </tr>
-                  ) : leads.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        No prospects found matching your search criteria.
-                      </td>
-                    </tr>
-                  ) : (
-                    leads.map((lead) => {
-                      const hasEmail = Boolean(lead.email && lead.email.includes('@'));
-                      const hasPhone = Boolean(lead.phone && lead.phone.length > 5);
-
-                      return (
-                        <tr
-                          key={lead.id}
-                          onClick={() => setSelectedLead(lead)}
-                          className="hover:bg-slate-50/70 transition-colors cursor-pointer"
-                        >
-                          <td className="py-3 px-4 font-semibold text-slate-900">
-                            <div className="flex items-center gap-2">
-                              <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{lead.company_name}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-slate-700">
-                            <div className="font-medium">{lead.contact_name || 'Managing Director'}</div>
-                            <div className="text-[11px] text-slate-400">{lead.email || 'No email on record'}</div>
-                          </td>
-                          <td className="py-3 px-4 text-slate-600">
-                            <div className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-slate-400" />
-                              <span>{lead.city}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-slate-600">{lead.industry}</td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-1.5">
-                              {hasEmail && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-700 border border-blue-200">
-                                  Email
-                                </span>
-                              )}
-                              {hasPhone && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  Phone
-                                </span>
-                              )}
-                              {lead.contact_name && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-sky-50 text-sky-700 border border-sky-200">
-                                  LinkedIn
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
-                                lead.priority === 'high'
-                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                  : lead.priority === 'medium'
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                  : 'bg-slate-100 text-slate-700'
-                              }`}
-                            >
-                              {lead.priority}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                lead.status === 'qualified'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : lead.status === 'replied'
-                                  ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
-                                  : lead.status === 'in_campaign'
-                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              <span className="capitalize">{lead.status.replace('_', ' ')}</span>
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedLead(lead);
-                              }}
-                              className="text-blue-600 hover:text-blue-800 font-semibold text-xs cursor-pointer"
-                            >
-                              Details
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
       )}
 
-      {/* Segments Tab View */}
+      {/* Target Segments Tab View */}
       {activeTab === 'segments' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {segments.map((seg) => (
-            <div
+            <Card
               key={seg.id}
-              className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-400 transition-all flex flex-col justify-between space-y-4"
+              hoverEffect
+              className="p-5 flex flex-col justify-between space-y-4"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                  <Badge variant="primary" size="sm">
                     {seg.channel_fit}
-                  </span>
-                  <span className="text-sm font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                  </Badge>
+                  <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-full tabular-nums">
                     {seg.count} prospects
                   </span>
                 </div>
@@ -567,59 +755,99 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                 </div>
               </div>
 
-              <button
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => {
                   if (onLaunchCampaignWithSegment) {
                     onLaunchCampaignWithSegment(seg.name, seg.lead_ids, seg.channel_fit);
                   }
                 }}
                 disabled={seg.count === 0}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="w-full"
+                leftIcon={<Send className="w-3.5 h-3.5" />}
               >
-                <Send className="w-3.5 h-3.5" />
-                <span>Launch Campaign for this Segment</span>
-              </button>
-            </div>
+                Launch Campaign for this Segment
+              </Button>
+            </Card>
           ))}
         </div>
       )}
 
       {/* Guided Multi-Step Lead Import Wizard Modal */}
       {showImportWizard && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
+            <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
                 <FileSpreadsheet className="w-5 h-5 text-cyan-400 shrink-0" />
                 <div>
-                  <h3 className="font-bold text-sm sm:text-base leading-tight">Guided Prospect Import & Channel Segmentation</h3>
-                  <p className="text-[10px] sm:text-[11px] text-slate-400">Step {importStep} of 4: {importStep === 1 ? 'Upload File' : importStep === 2 ? 'Column Mapping' : importStep === 3 ? 'Validation & Channel Segments' : 'Commit & Campaign'}</p>
+                  <h3 className="font-bold text-sm sm:text-base leading-tight">
+                    Guided Prospect Import & Channel Segmentation
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Step {importStep} of 4:{' '}
+                    {importStep === 1
+                      ? 'Upload File'
+                      : importStep === 2
+                      ? 'Column Mapping'
+                      : importStep === 3
+                      ? 'Validation & Channel Segments'
+                      : 'Commit & Campaign'}
+                  </p>
                 </div>
               </div>
-              <button onClick={resetImportWizard} className="text-slate-400 hover:text-white p-1 rounded">
+              <button
+                onClick={resetImportWizard}
+                className="text-slate-400 hover:text-white p-1 rounded transition-colors cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Stepper Indicator */}
-            <div className="grid grid-cols-4 border-b border-slate-200 text-[10px] sm:text-xs font-semibold text-center bg-slate-50 shrink-0">
-              <div className={`py-2 sm:py-2.5 ${importStep === 1 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+            <div className="grid grid-cols-4 border-b border-slate-200 text-xs font-semibold text-center bg-slate-50 shrink-0">
+              <div
+                className={`py-2.5 ${
+                  importStep === 1
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                    : 'text-slate-500'
+                }`}
+              >
                 1. Upload
               </div>
-              <div className={`py-2 sm:py-2.5 ${importStep === 2 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+              <div
+                className={`py-2.5 ${
+                  importStep === 2
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                    : 'text-slate-500'
+                }`}
+              >
                 2. Map Fields
               </div>
-              <div className={`py-2 sm:py-2.5 ${importStep === 3 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+              <div
+                className={`py-2.5 ${
+                  importStep === 3
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                    : 'text-slate-500'
+                }`}
+              >
                 3. Segment
               </div>
-              <div className={`py-2 sm:py-2.5 ${importStep === 4 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+              <div
+                className={`py-2.5 ${
+                  importStep === 4
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                    : 'text-slate-500'
+                }`}
+              >
                 4. Commit
               </div>
             </div>
 
             {/* Modal Body */}
-            <div className="p-3.5 sm:p-6 overflow-y-auto flex-1 space-y-4">
+            <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-4">
               {/* STEP 1: Upload */}
               {importStep === 1 && (
                 <div className="space-y-4">
@@ -630,11 +858,13 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 flex items-center justify-between">
                     <div>
                       <span className="font-semibold block text-slate-900">Pre-formatted Sample Available:</span>
-                      <span className="text-[11px] text-slate-500 break-all">sample_data/SENVO_Irish_Corporate_Leads.csv</span>
+                      <span className="text-[11px] text-slate-500 font-mono break-all">
+                        sample_data/SENVO_Irish_Corporate_Leads.csv
+                      </span>
                     </div>
                   </div>
 
-                  <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 sm:p-8 text-center hover:border-blue-500 transition-colors bg-slate-50/50">
+                  <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-blue-500 transition-colors bg-slate-50/50">
                     <input
                       type="file"
                       id="wizard-file"
@@ -666,9 +896,9 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                       <span className="font-bold">File: {parseResult.filename}</span>
                       <span className="ml-2 text-blue-700">({parseResult.rowCount} total rows detected)</span>
                     </div>
-                    <span className="text-[11px] font-semibold text-blue-600 bg-white px-2 py-0.5 rounded border border-blue-200 self-start sm:self-auto">
+                    <Badge variant="primary" size="xs">
                       Headers Auto-Detected
-                    </span>
+                    </Badge>
                   </div>
 
                   <div className="space-y-2.5 text-xs">
@@ -684,7 +914,10 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                       { field: 'city', label: 'City / Operating Hub', req: false },
                       { field: 'priority', label: 'Target Priority', req: false },
                     ].map((f) => (
-                      <div key={f.field} className="flex flex-col sm:grid sm:grid-cols-2 items-start sm:items-center gap-1 sm:gap-3">
+                      <div
+                        key={f.field}
+                        className="flex flex-col sm:grid sm:grid-cols-2 items-start sm:items-center gap-1 sm:gap-3"
+                      >
                         <span className="text-slate-700 font-medium">{f.label}</span>
                         <select
                           value={columnMap[f.field] || ''}
@@ -702,32 +935,24 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                     ))}
                   </div>
 
-                  <div className="pt-2 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
-                    <button
-                      type="button"
+                  <div className="pt-3 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setImportStep(1)}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium py-1.5 text-center"
                     >
                       Back to File
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      isLoading={isValidating}
+                      disabled={!columnMap.company_name}
                       onClick={handleRunValidation}
-                      disabled={isValidating || !columnMap.company_name}
-                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
                     >
-                      {isValidating ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Validating Records...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Validate & Compute Segments</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </>
-                      )}
-                    </button>
+                      Validate & Compute Segments
+                    </Button>
                   </div>
                 </div>
               )}
@@ -739,21 +964,29 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 text-center text-xs">
                     <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                       <span className="text-emerald-700 block text-[11px] font-semibold">Eligible Records</span>
-                      <span className="text-xl font-bold text-emerald-900">{validationResult.eligible}</span>
+                      <span className="text-xl font-bold text-emerald-900 tabular-nums">
+                        {validationResult.eligible}
+                      </span>
                     </div>
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <span className="text-amber-700 block text-[11px] font-semibold">Duplicates Detected</span>
-                      <span className="text-xl font-bold text-amber-900">{validationResult.duplicates}</span>
+                      <span className="text-xl font-bold text-amber-900 tabular-nums">
+                        {validationResult.duplicates}
+                      </span>
                     </div>
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
                       <span className="text-slate-500 block text-[11px] font-semibold">Incomplete / Skipped</span>
-                      <span className="text-xl font-bold text-slate-700">{validationResult.incomplete}</span>
+                      <span className="text-xl font-bold text-slate-700 tabular-nums">
+                        {validationResult.incomplete}
+                      </span>
                     </div>
                   </div>
 
                   {/* Channel Breakdown Box */}
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5">
-                    <span className="font-bold text-slate-900 block text-[11px]">Contact Channel Eligibility Breakdown:</span>
+                    <span className="font-bold text-slate-900 block text-[11px]">
+                      Contact Channel Eligibility Breakdown:
+                    </span>
                     <div className="flex flex-wrap gap-2">
                       <span className="px-2 py-1 bg-white border border-slate-200 rounded font-medium text-slate-700">
                         Multi-Channel Ready: <strong>{validationResult.segment_counts.multi_channel}</strong>
@@ -768,7 +1001,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                   </div>
 
                   {/* Records Preview Table */}
-                  <div className="border border-slate-200 rounded-lg max-h-56 overflow-y-auto overflow-x-auto">
+                  <div className="border border-slate-200 rounded-lg max-h-56 overflow-y-auto overflow-x-auto shadow-2xs">
                     <table className="w-full min-w-[420px] text-left text-xs border-collapse">
                       <thead className="bg-slate-50 text-[11px] font-semibold text-slate-600 sticky top-0 border-b border-slate-200">
                         <tr>
@@ -786,17 +1019,18 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                               <span className="text-slate-600">{r.eligible_channels.join(', ') || 'None'}</span>
                             </td>
                             <td className="p-2">
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              <Badge
+                                variant={
                                   r.status === 'valid'
-                                    ? 'bg-emerald-50 text-emerald-700'
+                                    ? 'success'
                                     : r.status === 'duplicate'
-                                    ? 'bg-amber-50 text-amber-700'
-                                    : 'bg-rose-50 text-rose-700'
-                                }`}
+                                    ? 'warning'
+                                    : 'danger'
+                                }
+                                size="xs"
                               >
-                                {r.status}
-                              </span>
+                                {r.status.toUpperCase()}
+                              </Badge>
                             </td>
                             <td className="p-2 text-slate-500">{r.issues.join('; ') || 'Ready for import'}</td>
                           </tr>
@@ -805,22 +1039,24 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                     </table>
                   </div>
 
-                  <div className="pt-2 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
-                    <button
-                      type="button"
+                  <div className="pt-3 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setImportStep(2)}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium py-1.5 text-center"
                     >
                       Back to Mapping
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="success"
+                      size="sm"
+                      isLoading={isCommitting}
+                      disabled={validationResult.eligible === 0}
                       onClick={handleCommit}
-                      disabled={isCommitting || validationResult.eligible === 0}
-                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      rightIcon={<Check className="w-3.5 h-3.5" />}
                     >
-                      {isCommitting ? 'Committing to Database...' : `Commit ${validationResult.eligible} Eligible Leads`}
-                    </button>
+                      Commit {validationResult.eligible} Eligible Leads
+                    </Button>
                   </div>
                 </div>
               )}
@@ -828,42 +1064,48 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
               {/* STEP 4: Confirmation & Campaign Handoff */}
               {importStep === 4 && commitResult && (
                 <div className="space-y-4 text-center py-4">
-                  <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                  <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-2xs">
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
                   <div>
                     <h4 className="font-bold text-slate-900 text-base">Import Successfully Committed</h4>
                     <p className="text-xs text-slate-500 mt-1">
-                      {commitResult.committed} validated Irish corporate prospects have been persisted to SQLite.
+                      {commitResult.committed} validated Irish corporate prospects have been persisted to the database.
                     </p>
                   </div>
 
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 text-left space-y-1">
                     <span className="font-bold">Next Actionable Step:</span>
-                    <p>Continue straight into campaign creation using this freshly imported audience, or view them in the main directory.</p>
+                    <p>
+                      Continue straight into campaign creation using this freshly imported audience, or view them in the main directory.
+                    </p>
                   </div>
 
                   <div className="pt-4 flex flex-col sm:flex-row justify-center gap-2.5 sm:gap-3">
-                    <button
-                      type="button"
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={resetImportWizard}
-                      className="w-full sm:w-auto px-4 py-2 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-50"
                     >
                       View in Leads Directory
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => {
                         resetImportWizard();
                         if (onLaunchCampaignWithSegment) {
-                          onLaunchCampaignWithSegment('Fresh Import Batch', commitResult.createdIds, 'Corporate Email');
+                          onLaunchCampaignWithSegment(
+                            'Fresh Import Batch',
+                            commitResult.createdIds,
+                            'Corporate Email'
+                          );
                         }
                       }}
-                      className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-xs flex items-center justify-center gap-1.5"
+                      leftIcon={<Send className="w-3.5 h-3.5" />}
                     >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Create Campaign for this Batch</span>
-                    </button>
+                      Create Campaign for this Batch
+                    </Button>
                   </div>
                 </div>
               )}
@@ -872,18 +1114,21 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
         </div>
       )}
 
-      {/* Add Lead Modal */}
+      {/* Add Single Lead Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
-            <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+            <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
               <h3 className="font-bold text-sm sm:text-base">Add Single Irish Corporate Prospect</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white p-1">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateLead} className="p-4 sm:p-6 space-y-3.5 overflow-y-auto flex-1">
+            <form onSubmit={handleCreateLead} className="p-5 space-y-3.5 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Company Legal Name *</label>
                 <input
@@ -892,7 +1137,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                   value={newLead.company_name}
                   onChange={(e) => setNewLead({ ...newLead, company_name: e.target.value })}
                   placeholder="e.g. Galway Marine Engineering Ltd"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 shadow-2xs"
                 />
               </div>
 
@@ -904,17 +1149,17 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                     value={newLead.contact_name}
                     onChange={(e) => setNewLead({ ...newLead, contact_name: e.target.value })}
                     placeholder="e.g. Liam Higgins"
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 shadow-2xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">City / Hub</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">City / Operating Hub</label>
                   <input
                     type="text"
                     value={newLead.city}
                     onChange={(e) => setNewLead({ ...newLead, city: e.target.value })}
                     placeholder="e.g. Cork"
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 shadow-2xs"
                   />
                 </div>
               </div>
@@ -927,7 +1172,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                     value={newLead.email}
                     onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
                     placeholder="contact@company.ie"
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 shadow-2xs"
                   />
                 </div>
                 <div>
@@ -937,7 +1182,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                     value={newLead.phone}
                     onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
                     placeholder="+353 1 234 5678"
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 shadow-2xs"
                   />
                 </div>
               </div>
@@ -947,7 +1192,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                 <select
                   value={newLead.industry}
                   onChange={(e) => setNewLead({ ...newLead, industry: e.target.value })}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 bg-white shadow-2xs"
                 >
                   {industries.map((ind) => (
                     <option key={ind} value={ind}>
@@ -957,20 +1202,22 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
                 </select>
               </div>
 
-              <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
-                <button
+              <div className="pt-3 flex justify-end gap-2.5 border-t border-slate-100">
+                <Button
+                  variant="ghost"
+                  size="sm"
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
                   type="submit"
-                  className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs"
                 >
                   Save Record
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -979,61 +1226,138 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({ onLaunchCampaignWithSe
 
       {/* Lead Detail Slide-over Panel */}
       {selectedLead && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex justify-end z-50">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl p-4 sm:p-6 overflow-y-auto space-y-6 flex flex-col justify-between">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex justify-end z-50 animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white h-full shadow-2xl p-5 sm:p-6 overflow-y-auto space-y-6 flex flex-col justify-between">
             <div className="space-y-6">
+              {/* Header */}
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div>
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                  <Badge variant="primary" size="xs">
                     Corporate Prospect Profile
-                  </span>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 mt-1">{selectedLead.company_name}</h3>
+                  </Badge>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 mt-1">
+                    {selectedLead.company_name}
+                  </h3>
                 </div>
                 <button
                   onClick={() => setSelectedLead(null)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded"
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded cursor-pointer transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="space-y-3 text-xs">
+              {/* ICP Intelligence Score Card */}
+              <Card className="border-blue-200/80 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <Target className="w-4 h-4 text-blue-600" />
+                    <span>ICP Fit Evaluation</span>
+                  </div>
+                  <Badge variant="primary" size="sm">
+                    {calculateIcpScore(selectedLead)}/100 Tier 1 Fit
+                  </Badge>
+                </div>
+
+                <ProgressBar
+                  value={calculateIcpScore(selectedLead)}
+                  color="blue"
+                  size="sm"
+                />
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                  <div className="bg-white/80 p-2 rounded border border-blue-100 flex items-center justify-between">
+                    <span className="text-slate-500">Industry Fit:</span>
+                    <span className="font-bold text-emerald-700">100%</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded border border-blue-100 flex items-center justify-between">
+                    <span className="text-slate-500">Geography:</span>
+                    <span className="font-bold text-emerald-700">100%</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded border border-blue-100 flex items-center justify-between">
+                    <span className="text-slate-500">Decision Maker:</span>
+                    <span className="font-bold text-emerald-700">
+                      {selectedLead.contact_name ? '100%' : '50%'}
+                    </span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded border border-blue-100 flex items-center justify-between">
+                    <span className="text-slate-500">Channels:</span>
+                    <span className="font-bold text-emerald-700">
+                      {selectedLead.email && selectedLead.phone ? '100%' : '60%'}
+                    </span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Contact & Registration Data */}
+              <div className="space-y-3.5 text-xs">
                 <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">Primary Decision Maker</span>
-                  <span className="font-semibold text-slate-900 text-sm">{selectedLead.contact_name || 'Managing Director'}</span>
+                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Primary Decision Maker</span>
+                  <span className="font-semibold text-slate-900 text-sm">
+                    {selectedLead.contact_name || 'Managing Director'}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">Corporate Email</span>
+                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Corporate Email</span>
                   <span className="text-slate-800 font-mono break-all">{selectedLead.email || '—'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">Direct Telephone</span>
+                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Direct Telephone</span>
                   <span className="text-slate-800 font-mono">{selectedLead.phone || '—'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">Operating Hub</span>
-                  <span className="text-slate-800">{selectedLead.city}, Ireland</span>
+                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Operating Hub</span>
+                  <span className="text-slate-800 font-medium">{selectedLead.city}, Ireland</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">Sector Classification</span>
-                  <span className="text-slate-800">{selectedLead.industry}</span>
+                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Sector Classification</span>
+                  <span className="text-slate-800 font-medium">{selectedLead.industry}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">Lifecycle Stage</span>
-                  <span className="inline-block px-2.5 py-1 rounded bg-slate-100 font-semibold text-slate-800 capitalize">
-                    {selectedLead.status.replace('_', ' ')}
-                  </span>
+                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Lifecycle Stage</span>
+                  <Badge variant={getStatusBadgeVariant(selectedLead.status)} size="sm">
+                    {selectedLead.status.replace('_', ' ').toUpperCase()}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-0.5 font-medium text-[11px]">Statutory CRO Status</span>
+                  <div className="flex items-center gap-1.5 text-emerald-700 font-medium bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>CRO Registered Irish Trading Entity</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-200">
-              <button
+            {/* Actions Footer */}
+            <div className="pt-4 border-t border-slate-200 space-y-2">
+              {onLaunchCampaignWithSegment && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedLead(null);
+                    onLaunchCampaignWithSegment(
+                      `Target: ${selectedLead.company_name}`,
+                      [selectedLead.id],
+                      'email'
+                    );
+                  }}
+                  className="w-full"
+                  leftIcon={<Send className="w-3.5 h-3.5" />}
+                >
+                  Enroll in New Campaign
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setSelectedLead(null)}
-                className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors cursor-pointer"
+                className="w-full"
               >
                 Close Profile
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -19,10 +19,18 @@ import {
   Users,
   Sparkles,
   FileText,
-  Activity
+  Activity,
+  Check,
+  ShieldCheck,
+  Filter
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Campaign, ChannelType, LeadSegment } from '../types';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import { Badge, type BadgeVariant } from './ui/Badge';
+import { Button } from './ui/Button';
+import { ProgressBar } from './ui/ProgressBar';
+import { EmptyState } from './ui/EmptyState';
 
 interface CampaignsModuleProps {
   initialSegmentName?: string;
@@ -47,7 +55,9 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
   // Form State
   const [campaignName, setCampaignName] = useState<string>('');
   const [selectedSegmentId, setSelectedSegmentId] = useState<string>('');
-  const [targetAudienceText, setTargetAudienceText] = useState<string>(initialSegmentName || 'All Eligible Corporate Prospects');
+  const [targetAudienceText, setTargetAudienceText] = useState<string>(
+    initialSegmentName || 'All Eligible Corporate Prospects'
+  );
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>(initialLeadIds || []);
   const [channel, setChannel] = useState<ChannelType>((initialChannel as ChannelType) || 'email');
   const [templateId, setTemplateId] = useState<string>('IE-CORP-01');
@@ -109,7 +119,7 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
   useEffect(() => {
     fetchCampaigns();
     fetchSegments();
-    const interval = setInterval(fetchCampaigns, 2500);
+    const interval = setInterval(fetchCampaigns, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -179,7 +189,7 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
     },
   ];
 
-  const handleSelectTemplate = (t: typeof templates[0]) => {
+  const handleSelectTemplate = (t: (typeof templates)[0]) => {
     setTemplateId(t.id);
     setChannel(t.channel);
     setTemplateBody(t.body);
@@ -208,7 +218,7 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
         lead_ids: selectedLeadIds,
       });
 
-      // Automatically launch if desired or keep in draft
+      // Automatically launch in simulation environment
       await api.startCampaign(created.id);
 
       setShowBuilder(false);
@@ -223,43 +233,74 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
     }
   };
 
+  const getCampaignStatusBadge = (status: string): BadgeVariant => {
+    switch (status) {
+      case 'running':
+        return 'success';
+      case 'completed':
+        return 'primary';
+      case 'paused':
+        return 'warning';
+      default:
+        return 'neutral';
+    }
+  };
+
   return (
     <div className="p-3.5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 max-w-7xl mx-auto">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Campaign Dispatch & Audience Orchestration</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Multi-channel outreach execution • Real-time recipient status tracking in SQLite
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+              Campaign Dispatch & Audience Orchestration
+            </h2>
+            <Badge variant="primary" size="sm">
+              {campaigns.length} Active Campaigns
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Multi-channel outreach execution with real-time recipient delivery tracking in persistent database.
           </p>
         </div>
 
-        <button
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => {
             setShowBuilder(true);
             setBuilderStep(1);
           }}
-          className="flex items-center justify-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer w-full sm:w-auto"
+          leftIcon={<Plus className="w-3.5 h-3.5" />}
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span>New Campaign Builder</span>
-        </button>
+          New Campaign Builder
+        </Button>
       </div>
 
       {/* Main Campaign Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
-        {/* Left: Active Campaigns List */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
-          <div className="p-3.5 sm:p-4 bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
-            <span>Campaigns ({campaigns.length})</span>
+        {/* Left Column: Campaigns List */}
+        <Card className="overflow-hidden shadow-card flex flex-col">
+          <CardHeader className="py-3.5 px-4 bg-slate-50/80 border-b border-slate-200">
+            <CardTitle className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Campaigns ({campaigns.length})
+            </CardTitle>
             <span className="text-[11px] font-normal text-slate-400">Click to monitor</span>
-          </div>
+          </CardHeader>
 
           <div className="divide-y divide-slate-100 overflow-y-auto max-h-[640px]">
             {loading ? (
-              <div className="p-8 text-center text-slate-400 text-xs">Loading campaigns...</div>
+              <div className="p-8 text-center text-slate-400 text-xs">
+                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                Loading campaigns...
+              </div>
             ) : campaigns.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">No active campaigns.</div>
+              <EmptyState
+                icon={Send}
+                title="No campaigns found"
+                description="Create a new campaign to begin simulated prospect outreach."
+                className="py-12"
+              />
             ) : (
               campaigns.map((c) => {
                 const isSelected = selectedCampaign?.id === c.id;
@@ -271,150 +312,168 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                   <div
                     key={c.id}
                     onClick={() => loadCampaignDetails(c.id)}
-                    className={`p-3.5 sm:p-4 transition-all cursor-pointer ${
-                      isSelected ? 'bg-blue-50/70 border-l-4 border-l-blue-600' : 'hover:bg-slate-50/70'
+                    className={`p-4 transition-all duration-150 cursor-pointer border-l-3 ${
+                      isSelected
+                        ? 'bg-blue-50/70 border-l-blue-600 shadow-2xs'
+                        : 'border-l-transparent hover:bg-slate-50/80'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5 gap-2">
                       <span className="font-bold text-slate-900 text-xs truncate">
                         {c.name}
                       </span>
-                      <span
-                        className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
-                          c.status === 'running'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : c.status === 'completed'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : c.status === 'paused'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {c.status}
-                      </span>
+                      <Badge variant={getCampaignStatusBadge(c.status)} size="xs">
+                        {c.status.toUpperCase()}
+                      </Badge>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 mb-2">
                       <span className="capitalize font-semibold text-slate-700">[{c.channel}]</span>
-                      <span>
+                      <span className="tabular-nums">
                         {c.sent_count} / {c.total_recipients} sent ({progressPct}%)
                       </span>
                     </div>
 
-                    {/* Progress Bar */}
-                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          c.status === 'completed' ? 'bg-emerald-500' : 'bg-blue-600'
-                        }`}
-                        style={{ width: `${progressPct}%` }}
-                      />
-                    </div>
+                    <ProgressBar
+                      value={progressPct}
+                      color={c.status === 'completed' ? 'emerald' : 'blue'}
+                      size="sm"
+                    />
                   </div>
                 );
               })
             )}
           </div>
-        </div>
+        </Card>
 
-        {/* Right: Selected Campaign Execution Monitor */}
+        {/* Right Column: Selected Campaign Execution Monitor */}
         <div className="lg:col-span-2 space-y-5 sm:space-y-6">
           {selectedCampaign ? (
             <>
               {/* Campaign Detail Card */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-2xs space-y-4">
+              <Card className="p-5 sm:p-6 shadow-card space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-100 pb-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">{selectedCampaign.name}</h3>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 uppercase">
-                        {selectedCampaign.channel}
-                      </span>
+                      <h3 className="text-base font-bold text-slate-900 truncate">
+                        {selectedCampaign.name}
+                      </h3>
+                      <Badge variant="primary" size="xs">
+                        {selectedCampaign.channel.toUpperCase()}
+                      </Badge>
+                      <Badge variant={getCampaignStatusBadge(selectedCampaign.status)} size="xs">
+                        {selectedCampaign.status.toUpperCase()}
+                      </Badge>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">
-                      Target Audience: <span className="font-semibold text-slate-700">{selectedCampaign.target_audience}</span>
+                    <p className="text-xs text-slate-500 mt-1 truncate">
+                      Target Audience:{' '}
+                      <span className="font-semibold text-slate-700">
+                        {selectedCampaign.target_audience}
+                      </span>
                     </p>
                   </div>
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
                     {selectedCampaign.status === 'running' ? (
-                      <button
+                      <Button
+                        variant="warning"
+                        size="sm"
                         onClick={() => handlePause(selectedCampaign.id)}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold shadow-2xs cursor-pointer w-full sm:w-auto justify-center"
+                        leftIcon={<Pause className="w-3.5 h-3.5" />}
                       >
-                        <Pause className="w-3.5 h-3.5" />
-                        <span>Pause Campaign</span>
-                      </button>
+                        Pause Campaign
+                      </Button>
                     ) : selectedCampaign.status === 'completed' ? (
-                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Campaign Dispatched</span>
-                      </span>
+                      <Badge variant="success" size="md">
+                        Campaign Dispatched
+                      </Badge>
                     ) : (
-                      <button
+                      <Button
+                        variant="success"
+                        size="sm"
                         onClick={() => handleStart(selectedCampaign.id)}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs cursor-pointer w-full sm:w-auto justify-center"
+                        leftIcon={<Play className="w-3.5 h-3.5" />}
                       >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>Launch Campaign</span>
-                      </button>
+                        Resume Campaign
+                      </Button>
                     )}
                   </div>
                 </div>
 
-                {/* KPI Metrics derived strictly from SQLite */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-center text-xs">
-                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                    <span className="text-slate-400 block text-[10px] sm:text-[11px]">Total Audience</span>
-                    <span className="font-bold text-slate-900 text-sm sm:text-base">{selectedCampaign.total_recipients}</span>
+                {/* KPI Metrics */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                    <span className="text-slate-500 block text-[11px] font-medium">Total Audience</span>
+                    <span className="font-bold text-slate-900 text-base mt-0.5 block tabular-nums">
+                      {selectedCampaign.total_recipients}
+                    </span>
                   </div>
-                  <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-100">
-                    <span className="text-blue-600 block text-[10px] sm:text-[11px]">Messages Sent</span>
-                    <span className="font-bold text-blue-900 text-sm sm:text-base">{selectedCampaign.sent_count}</span>
+                  <div className="bg-blue-50/80 p-3 rounded-xl border border-blue-200/80">
+                    <span className="text-blue-700 block text-[11px] font-medium">Messages Sent</span>
+                    <span className="font-bold text-blue-900 text-base mt-0.5 block tabular-nums">
+                      {selectedCampaign.sent_count}
+                    </span>
                   </div>
-                  <div className="bg-amber-50 p-2.5 rounded-lg border border-amber-100">
-                    <span className="text-amber-600 block text-[10px] sm:text-[11px]">Queued</span>
-                    <span className="font-bold text-amber-900 text-sm sm:text-base">
+                  <div className="bg-amber-50/80 p-3 rounded-xl border border-amber-200/80">
+                    <span className="text-amber-700 block text-[11px] font-medium">Queued</span>
+                    <span className="font-bold text-amber-900 text-base mt-0.5 block tabular-nums">
                       {Math.max(0, selectedCampaign.total_recipients - selectedCampaign.sent_count)}
                     </span>
                   </div>
-                  <div className="bg-cyan-50 p-2.5 rounded-lg border border-cyan-100">
-                    <span className="text-cyan-700 block text-[10px] sm:text-[11px]">Client Replies</span>
-                    <span className="font-bold text-cyan-900 text-sm sm:text-base">{selectedCampaign.replied_count || 0}</span>
+                  <div className="bg-cyan-50/80 p-3 rounded-xl border border-cyan-200/80">
+                    <span className="text-cyan-700 block text-[11px] font-medium">Client Replies</span>
+                    <span className="font-bold text-cyan-900 text-base mt-0.5 block tabular-nums">
+                      {selectedCampaign.replied_count || 0}
+                    </span>
                   </div>
                 </div>
 
                 {/* Approved Message Template */}
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-3.5 text-xs">
-                  <div className="font-semibold text-slate-700 mb-1 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <span>Approved Outreach Copy</span>
-                    <span className="text-[10px] text-slate-400 font-normal">
-                      Tokens: &#123;CONTACT_NAME&#125;, &#123;BUSINESS_NAME&#125;, &#123;CITY&#125;
+                <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-4 text-xs space-y-2">
+                  <div className="font-semibold text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Approved Outreach Copy</span>
                     </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-blue-600 font-mono text-[10px]">
+                        &#123;CONTACT_NAME&#125;
+                      </code>
+                      <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-blue-600 font-mono text-[10px]">
+                        &#123;BUSINESS_NAME&#125;
+                      </code>
+                      <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-blue-600 font-mono text-[10px]">
+                        &#123;CITY&#125;
+                      </code>
+                    </div>
                   </div>
-                  <p className="text-slate-600 whitespace-pre-line leading-relaxed font-sans text-xs">
+                  <p className="text-slate-700 whitespace-pre-line leading-relaxed font-sans text-xs bg-white p-3 rounded-lg border border-slate-200/80 shadow-2xs">
                     {selectedCampaign.template_body}
                   </p>
                 </div>
-              </div>
+              </Card>
 
               {/* Recipient-Level Sending Progress Table */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-                <div className="p-3.5 sm:p-4 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
+              <Card className="overflow-hidden shadow-card">
+                <CardHeader className="py-3.5 px-4 bg-slate-50/80 border-b border-slate-200">
                   <div className="flex items-center gap-2">
                     <Activity className="w-4 h-4 text-blue-600 shrink-0" />
-                    <span className="font-bold text-slate-800">Recipient-Level Dispatch Status & Audit Log</span>
+                    <CardTitle className="text-xs font-bold text-slate-800">
+                      Recipient-Level Dispatch Status & Audit Log
+                    </CardTitle>
                   </div>
-                  <span className="text-slate-500 text-[11px]">Updated live from database</span>
-                </div>
+                  <Badge variant="success" dot size="xs">
+                    Simulated Sandbox
+                  </Badge>
+                </CardHeader>
 
                 <div className="overflow-x-auto max-h-72">
                   <table className="w-full min-w-[500px] text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-slate-50/50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
-                        <th className="py-2.5 px-4">Company</th>
-                        <th className="py-2.5 px-4">Contact</th>
+                      <tr className="bg-slate-50/60 border-b border-slate-200 text-[11px] font-semibold text-slate-600 uppercase tracking-wider sticky top-0 backdrop-blur-xs">
+                        <th className="py-2.5 px-4">Company Entity</th>
+                        <th className="py-2.5 px-4">Decision Maker</th>
                         <th className="py-2.5 px-4">Channel</th>
                         <th className="py-2.5 px-4">Status</th>
                         <th className="py-2.5 px-4">Dispatch Timestamp</th>
@@ -431,21 +490,24 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                             </span>
                           </td>
                           <td className="py-2.5 px-4">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                            <Badge
+                              variant={
                                 rec.status === 'simulated_sent'
-                                  ? 'bg-blue-50 text-blue-700'
+                                  ? 'primary'
                                   : rec.status === 'replied'
-                                  ? 'bg-emerald-50 text-emerald-700 font-semibold'
-                                  : 'bg-amber-50 text-amber-700'
-                              }`}
+                                  ? 'success'
+                                  : 'warning'
+                              }
+                              size="xs"
                             >
-                              {rec.status === 'simulated_sent' && <CheckCircle2 className="w-3 h-3" />}
-                              {rec.status === 'queued' && <Clock className="w-3 h-3" />}
-                              <span>{rec.status === 'simulated_sent' ? 'Dispatched' : rec.status === 'queued' ? 'Queued' : 'Replied'}</span>
-                            </span>
+                              {rec.status === 'simulated_sent'
+                                ? 'Dispatched'
+                                : rec.status === 'queued'
+                                ? 'Queued'
+                                : 'Replied'}
+                            </Badge>
                           </td>
-                          <td className="py-2.5 px-4 text-slate-400 text-[11px]">
+                          <td className="py-2.5 px-4 text-slate-400 text-[11px] tabular-nums">
                             {rec.sent_at ? new Date(rec.sent_at).toLocaleTimeString() : 'Awaiting Dispatch'}
                           </td>
                         </tr>
@@ -453,61 +515,102 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
             </>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 p-8 sm:p-12 text-center text-slate-400 text-xs">
-              Select a campaign on the left to monitor live recipient progress.
-            </div>
+            <EmptyState
+              icon={Send}
+              title="Select a Campaign"
+              description="Choose a campaign from the left list to monitor live recipient progress and response metrics."
+              className="py-16"
+            />
           )}
         </div>
       </div>
 
       {/* Guided Campaign Builder Wizard Modal */}
       {showBuilder && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+            <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
               <div>
                 <h3 className="font-bold text-sm sm:text-base leading-tight">Guided Campaign Builder</h3>
-                <p className="text-[10px] sm:text-[11px] text-slate-400">Step {builderStep} of 4: {builderStep === 1 ? 'Audience & Segment' : builderStep === 2 ? 'Channel & Template' : builderStep === 3 ? 'Personalization & Preview' : 'Review & Confirm'}</p>
+                <p className="text-[11px] text-slate-400">
+                  Step {builderStep} of 4:{' '}
+                  {builderStep === 1
+                    ? 'Audience & Segment'
+                    : builderStep === 2
+                    ? 'Channel & Template'
+                    : builderStep === 3
+                    ? 'Personalization & Preview'
+                    : 'Review & Confirm'}
+                </p>
               </div>
-              <button onClick={() => setShowBuilder(false)} className="text-slate-400 hover:text-white p-1 rounded">
+              <button
+                onClick={() => setShowBuilder(false)}
+                className="text-slate-400 hover:text-white p-1 rounded transition-colors cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Stepper Indicator */}
-            <div className="grid grid-cols-4 border-b border-slate-200 text-[10px] sm:text-xs font-semibold text-center bg-slate-50 shrink-0">
-              <div className={`py-2 sm:py-2.5 ${builderStep === 1 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+            <div className="grid grid-cols-4 border-b border-slate-200 text-xs font-semibold text-center bg-slate-50 shrink-0">
+              <div
+                className={`py-2.5 ${
+                  builderStep === 1
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                    : 'text-slate-500'
+                }`}
+              >
                 1. Audience
               </div>
-              <div className={`py-2 sm:py-2.5 ${builderStep === 2 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+              <div
+                className={`py-2.5 ${
+                  builderStep === 2
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                    : 'text-slate-500'
+                }`}
+              >
                 2. Template
               </div>
-              <div className={`py-2 sm:py-2.5 ${builderStep === 3 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+              <div
+                className={`py-2.5 ${
+                  builderStep === 3
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                    : 'text-slate-500'
+                }`}
+              >
                 3. Preview
               </div>
-              <div className={`py-2 sm:py-2.5 ${builderStep === 4 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500'}`}>
+              <div
+                className={`py-2.5 ${
+                  builderStep === 4
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                    : 'text-slate-500'
+                }`}
+              >
                 4. Confirm
               </div>
             </div>
 
             {/* Wizard Body */}
-            <div className="p-3.5 sm:p-6 overflow-y-auto flex-1 space-y-4">
+            <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-4">
               {/* STEP 1: Audience Selection */}
               {builderStep === 1 && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Campaign Name *</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Campaign Name *
+                    </label>
                     <input
                       type="text"
                       required
                       value={campaignName}
                       onChange={(e) => setCampaignName(e.target.value)}
                       placeholder="e.g. Q4 Dublin MedTech & Logistics Year-End Compliance Briefing"
-                      className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
+                      className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 shadow-2xs"
                     />
                   </div>
 
@@ -515,14 +618,14 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Select Intelligent Target Segment
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {segments.map((seg) => {
                         const isSelected = selectedSegmentId === seg.id;
                         return (
                           <div
                             key={seg.id}
                             onClick={() => handleSegmentChange(seg.id)}
-                            className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                            className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-blue-50/70 border-blue-500 shadow-2xs'
                                 : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
@@ -530,11 +633,11 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                           >
                             <div className="flex items-center justify-between mb-1">
                               <span className="font-bold text-xs text-slate-900">{seg.name}</span>
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                              <Badge variant="neutral" size="xs">
                                 {seg.count} leads
-                              </span>
+                              </Badge>
                             </div>
-                            <p className="text-[11px] text-slate-500 leading-tight line-clamp-2">
+                            <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2">
                               {seg.description}
                             </p>
                           </div>
@@ -543,16 +646,16 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-2 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setBuilderStep(2)}
+                  <div className="pt-3 flex justify-end">
+                    <Button
+                      variant="primary"
+                      size="sm"
                       disabled={!campaignName.trim() || selectedLeadIds.length === 0}
-                      className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      onClick={() => setBuilderStep(2)}
+                      rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
                     >
-                      <span>Continue to Channel & Template</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                      Continue to Channel & Template
+                    </Button>
                   </div>
                 </div>
               )}
@@ -561,11 +664,13 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
               {builderStep === 2 && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Outreach Medium</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Outreach Medium
+                    </label>
                     <select
                       value={channel}
                       onChange={(e) => setChannel(e.target.value as ChannelType)}
-                      className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white capitalize focus:ring-2 focus:ring-blue-500"
+                      className="w-full text-xs border border-slate-300 rounded-lg p-2.5 bg-white capitalize focus:ring-2 focus:ring-blue-500 shadow-2xs"
                     >
                       <option value="email">Corporate Email (Microsoft 365 Exchange)</option>
                       <option value="linkedin">LinkedIn InMail / Executive Direct Message</option>
@@ -583,13 +688,13 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                         <div
                           key={t.id}
                           onClick={() => handleSelectTemplate(t)}
-                          className={`p-3 rounded-lg border text-xs cursor-pointer transition-all ${
+                          className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all ${
                             templateId === t.id
                               ? 'bg-blue-50/70 border-blue-500 shadow-2xs'
                               : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
                           }`}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1 gap-0.5">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1 gap-1">
                             <span className="font-bold text-slate-900">
                               [{t.channel.toUpperCase()}] {t.title}
                             </span>
@@ -604,31 +709,33 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Custom Message Body</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Custom Message Body
+                    </label>
                     <textarea
                       rows={4}
                       value={templateBody}
                       onChange={(e) => setTemplateBody(e.target.value)}
-                      className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans"
+                      className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans shadow-2xs"
                     />
                   </div>
 
-                  <div className="pt-2 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
-                    <button
-                      type="button"
+                  <div className="pt-3 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setBuilderStep(1)}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium py-1.5 text-center"
                     >
                       Back to Audience
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => setBuilderStep(3)}
-                      className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
                     >
-                      <span>Preview Real Lead Personalization</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                      Preview Lead Personalization
+                    </Button>
                   </div>
                 </div>
               )}
@@ -636,57 +743,62 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
               {/* STEP 3: Personalization & Real Sample Preview */}
               {builderStep === 3 && (
                 <div className="space-y-4">
-                  <div className="bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-lg text-xs">
-                    <span className="font-bold text-slate-900 block mb-1">Personalization Preview with Sample Leads</span>
-                    <p className="text-slate-500 text-[11px]">
-                      Tokens <code className="bg-white px-1 rounded border border-slate-200 text-blue-600 font-mono">&#123;CONTACT_NAME&#125;</code>, <code className="bg-white px-1 rounded border border-slate-200 text-blue-600 font-mono">&#123;BUSINESS_NAME&#125;</code>, and <code className="bg-white px-1 rounded border border-slate-200 text-blue-600 font-mono">&#123;CITY&#125;</code> are dynamically populated for each recipient.
+                  <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl text-xs space-y-1">
+                    <span className="font-bold text-slate-900 block">
+                      Dynamic Personalization Token Tokens
+                    </span>
+                    <p className="text-slate-500 text-[11px] leading-relaxed">
+                      Tokens <code className="bg-white px-1 py-0.5 rounded border border-slate-200 text-blue-600 font-mono text-[10px]">&#123;CONTACT_NAME&#125;</code>, <code className="bg-white px-1 py-0.5 rounded border border-slate-200 text-blue-600 font-mono text-[10px]">&#123;BUSINESS_NAME&#125;</code>, and <code className="bg-white px-1 py-0.5 rounded border border-slate-200 text-blue-600 font-mono text-[10px]">&#123;CITY&#125;</code> are dynamically populated for each recipient in the queue.
                     </p>
                   </div>
 
                   {/* Rendered Preview Card */}
-                  <div className="bg-white border border-slate-300 rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
-                    <div className="flex flex-col xs:flex-row xs:items-center justify-between text-xs border-b border-slate-100 pb-2 gap-1.5">
+                  <Card className="p-4 sm:p-5 space-y-3 shadow-2xs">
+                    <div className="flex flex-col xs:flex-row xs:items-center justify-between text-xs border-b border-slate-100 pb-2.5 gap-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-800">Preview:</span>
-                        <span className="font-semibold text-blue-600 truncate max-w-[200px] xs:max-w-none">
-                          {previewLeadIndex === 0 ? 'Declan Murphy (Apex Logistics Ireland Ltd, Dublin 2)' : 'Sean O’Connor (Celtic Marine Engineering Ltd, Cork)'}
+                        <span className="font-bold text-slate-800">Simulated Recipient Preview:</span>
+                        <span className="font-semibold text-blue-600">
+                          {previewLeadIndex === 0
+                            ? 'Declan Murphy (Apex Logistics Ireland Ltd, Dublin 2)'
+                            : 'Sean O’Connor (Celtic Marine Engineering Ltd, Cork)'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1 self-start xs:self-auto">
-                        <button
-                          type="button"
-                          onClick={() => setPreviewLeadIndex(previewLeadIndex === 0 ? 1 : 0)}
-                          className="px-2 py-0.5 rounded border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                        >
-                          Toggle Sample
-                        </button>
-                      </div>
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => setPreviewLeadIndex(previewLeadIndex === 0 ? 1 : 0)}
+                      >
+                        Toggle Sample
+                      </Button>
                     </div>
 
-                    <div className="text-xs text-slate-700 whitespace-pre-line leading-relaxed font-sans bg-slate-50/50 p-3 sm:p-4 rounded-lg border border-slate-100">
+                    <div className="text-xs text-slate-800 whitespace-pre-line leading-relaxed font-sans bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
                       {templateBody
                         .replace(/{CONTACT_NAME}/g, previewLeadIndex === 0 ? 'Declan' : 'Sean')
-                        .replace(/{BUSINESS_NAME}/g, previewLeadIndex === 0 ? 'Apex Logistics Ireland Ltd' : 'Celtic Marine Engineering Ltd')
+                        .replace(
+                          /{BUSINESS_NAME}/g,
+                          previewLeadIndex === 0 ? 'Apex Logistics Ireland Ltd' : 'Celtic Marine Engineering Ltd'
+                        )
                         .replace(/{CITY}/g, previewLeadIndex === 0 ? 'Dublin 2' : 'Cork')}
                     </div>
-                  </div>
+                  </Card>
 
-                  <div className="pt-2 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
-                    <button
-                      type="button"
+                  <div className="pt-3 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setBuilderStep(2)}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium py-1.5 text-center"
                     >
                       Back to Template
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => setBuilderStep(4)}
-                      className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
                     >
-                      <span>Final Review & Launch</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                      Final Review & Launch
+                    </Button>
                   </div>
                 </div>
               )}
@@ -694,17 +806,18 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
               {/* STEP 4: Review & Confirm */}
               {builderStep === 4 && (
                 <div className="space-y-4">
-                  <div className="p-3.5 sm:p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2 text-xs">
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2 text-xs">
                     <div className="flex items-center gap-2 text-emerald-900 font-bold">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>Ready to Deploy Outreach Campaign</span>
                     </div>
                     <p className="text-emerald-800 leading-relaxed text-[11px]">
-                      The campaign will be staged in the SQLite database and process {selectedLeadIds.length} recipients asynchronously.
+                      The campaign will be staged in the persistent database and process{' '}
+                      <strong>{selectedLeadIds.length} recipients</strong> asynchronously in simulated dispatch mode.
                     </p>
                   </div>
 
-                  <div className="bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
                     <div className="flex justify-between gap-2">
                       <span className="text-slate-500 font-medium shrink-0">Campaign:</span>
                       <span className="font-bold text-slate-900 truncate text-right">{campaignName}</span>
@@ -719,36 +832,29 @@ export const CampaignsModule: React.FC<CampaignsModuleProps> = ({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500 font-medium">Recipients:</span>
-                      <span className="font-bold text-blue-700">{selectedLeadIds.length} corporate prospects</span>
+                      <span className="font-bold text-blue-700 tabular-nums">
+                        {selectedLeadIds.length} corporate prospects
+                      </span>
                     </div>
                   </div>
 
-                  <div className="pt-2 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
-                    <button
-                      type="button"
+                  <div className="pt-3 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center border-t border-slate-100 gap-2 sm:gap-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setBuilderStep(3)}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium py-1.5 text-center"
                     >
                       Back to Preview
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="md"
+                      isLoading={isLaunching}
                       onClick={handleLaunchCampaign}
-                      disabled={isLaunching}
-                      className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      leftIcon={<Send className="w-3.5 h-3.5" />}
                     >
-                      {isLaunching ? (
-                        <>
-                          <Clock className="w-3.5 h-3.5 animate-spin" />
-                          <span>Initializing Queue...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Confirm & Launch Campaign</span>
-                        </>
-                      )}
-                    </button>
+                      Confirm & Launch Campaign
+                    </Button>
                   </div>
                 </div>
               )}

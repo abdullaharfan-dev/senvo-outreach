@@ -1,10 +1,9 @@
 import React from 'react';
 import clsx from 'clsx';
-import { LucideIcon } from 'lucide-react';
 import Button from './Button';
 
 export interface EmptyStateProps {
-  icon: LucideIcon;
+  icon: React.ComponentType<{ className?: string }>;
   title: string;
   description: string;
   actionLabel?: string;
