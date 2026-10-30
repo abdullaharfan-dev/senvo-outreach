@@ -70,7 +70,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (authUser) {
       refreshCounts();
-      const interval = setInterval(refreshCounts, 5000);
+      const interval = setInterval(refreshCounts, 10000);
       return () => clearInterval(interval);
     }
   }, [authUser]);

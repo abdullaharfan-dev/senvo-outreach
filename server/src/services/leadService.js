@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { query, get, run } from '../db/database.js';
+import { invalidateOverviewCache } from './analyticsService.js';
 
 export const getLeads = async ({ search = '', industry = '', priority = '', status = '', page = 1, limit = 50 } = {}) => {
   let sql = 'SELECT * FROM leads WHERE 1=1';
@@ -70,6 +71,7 @@ export const createLead = async (data) => {
     [uuidv4(), id, `Created lead ${data.company_name}`, now]
   );
 
+  invalidateOverviewCache();
   return await getLeadById(id);
 };
 
@@ -93,6 +95,7 @@ export const updateLead = async (id, data) => {
   params.push(id);
 
   await run(`UPDATE leads SET ${fields.join(', ')} WHERE id = ?`, params);
+  invalidateOverviewCache();
   return await getLeadById(id);
 };
 
@@ -245,6 +248,8 @@ export const commitImportBatch = async (approvedRecords, sourceName = 'Spreadshe
      VALUES (?, 'System', 'LEADS_BATCH_COMMITTED', 'lead', ?, ?)`,
     [uuidv4(), `Committed ${committed} validated corporate leads into database from ${sourceName}`, now]
   );
+
+  invalidateOverviewCache();
 
   return { committed, createdIds };
 };

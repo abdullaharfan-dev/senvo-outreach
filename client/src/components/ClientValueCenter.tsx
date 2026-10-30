@@ -28,8 +28,10 @@ import {
   Plus,
   Check,
   Briefcase,
-  Share2
+  Share2,
+  TrendingUp
 } from 'lucide-react';
+import CommercialValueModel from './CommercialValueModel';
 import { api } from '../services/api';
 import type { Lead } from '../types';
 import {
@@ -203,8 +205,8 @@ export const ClientValueCenter: React.FC<ClientValueCenterProps> = ({
             },
             {
               id: 'client_report' as ValueCenterTab,
-              label: 'Module E: Client Value Report',
-              icon: FileText,
+              label: 'Module E: Commercial Opportunity Model',
+              icon: TrendingUp,
             },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -1072,150 +1074,11 @@ export const ClientValueCenter: React.FC<ClientValueCenterProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* MODULE E: CLIENT VALUE REPORT                                             */}
+      {/* MODULE E: COMMERCIAL VALUE MODEL & VALUE CENTER REPORT                     */}
       {/* ========================================================================= */}
       {activeTab === 'client_report' && (
-        <div className="space-y-6 animate-in fade-in duration-200 print:m-0 print:p-0">
-          {/* Printable Report Canvas */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-6 sm:p-10 space-y-8 text-slate-800 text-xs leading-relaxed max-w-4xl mx-auto print:border-none print:shadow-none print:p-0">
-            {/* Report Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-6">
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest block">
-                  Client Strategy & Advisory Assessment Report
-                </span>
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                  SENVO Outreach & Advisory Platform Architecture
-                </h1>
-                <p className="text-xs text-slate-500">
-                  Tailored Practice Strategy for: <strong>{config.clientName}</strong> &bull; {config.geography}
-                </p>
-              </div>
-
-              <div className="text-left sm:text-right text-[11px] text-slate-500 space-y-0.5">
-                <div>Document Version: <strong>1.0.0 (Production Verified)</strong></div>
-                <div>Engagement Lead: <strong>{config.partnerLead.name}</strong></div>
-                <div>Statutory Jurisdiction: <strong>{config.jurisdiction}</strong></div>
-              </div>
-            </div>
-
-            {/* 1. Executive Summary */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-1">
-                1. Executive Summary
-              </h3>
-              <p className="text-xs text-slate-700 leading-relaxed">
-                This presentation report delineates the commercial deployment strategy of SENVO Outreach for {config.clientName}. The platform bridges automated Irish corporate registry intelligence with server-side AI conversation handling, empowering the practice to identify qualified corporate clients across Dublin, Cork, and Galway while guaranteeing zero regulatory or statutory non-compliance.
-              </p>
-            </div>
-
-            {/* 2. Target Market Sizing & Segments */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-1">
-                2. Target Market Sizing & Segment Strategy
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                {config.targetSegments.map((seg) => (
-                  <div key={seg.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1">
-                    <span className="font-bold text-slate-900 block text-xs">{seg.name}</span>
-                    <span className="text-[10px] font-mono font-bold text-blue-700 block">
-                      ~{seg.estimatedProspects} Addressable Entities
-                    </span>
-                    <p className="text-[10px] text-slate-500 leading-relaxed pt-1">
-                      {seg.messagingAngle}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 3. Relevant Advisory Services */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-1">
-                3. Relevant Practice Services & Commercial Scope
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {config.services.map((svc) => (
-                  <div key={svc.id} className="p-3.5 rounded-xl border border-slate-200 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 text-xs">{svc.name}</span>
-                      <span className="text-[10px] font-mono font-bold text-emerald-700">{svc.typicalFee}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 leading-relaxed">{svc.valueProp}</p>
-                    <span className="text-[10px] text-slate-400 font-mono block">
-                      Legal Basis: {svc.statutoryReference}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 4. Multi-Channel Outreach Strategy */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-1">
-                4. Multi-Channel Outreach & Sequencing Framework
-              </h3>
-              <p className="text-xs text-slate-700 leading-relaxed">
-                Outreach sequences employ a 3-touch cadence over 10 days combining personalized cold email, ROI case studies, filing deadline urgency, and executive LinkedIn touches. All dispatches strictly enforce simulation safeguards in sandbox mode prior to partner review.
-              </p>
-            </div>
-
-            {/* 5. 30-Day Implementation Roadmap */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-1">
-                5. 30-Day Phased Implementation Roadmap
-              </h3>
-              <div className="space-y-2 pt-1 text-[11px]">
-                <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-                  <span className="font-bold text-slate-800">Week 1: Setup, ICP Scoring & Knowledge Ingestion</span>
-                  <Badge variant="success" size="xs">Milestone Approved</Badge>
-                </div>
-                <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-                  <span className="font-bold text-slate-800">Week 2: CRO Registry Filtering & Multi-Channel Sequences</span>
-                  <Badge variant="primary" size="xs">In Progress</Badge>
-                </div>
-                <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-                  <span className="font-bold text-slate-800">Week 3: AI Intent Classifier & Bitrix24 Gateway Staging</span>
-                  <Badge variant="neutral" size="xs">Planned</Badge>
-                </div>
-                <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-                  <span className="font-bold text-slate-800">Week 4: Executive Review & Partner Consultation Ramp</span>
-                  <Badge variant="neutral" size="xs">Planned</Badge>
-                </div>
-              </div>
-            </div>
-
-            {/* 6. Measurement Framework & Next Steps */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-1">
-                6. Measurement Framework & Next Steps
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-[11px]">
-                <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 space-y-1">
-                  <span className="font-bold text-blue-900 block">Target Reply Rate: &gt;35%</span>
-                  <p className="text-slate-600 text-[10px]">Benchmarked against Irish B2B corporate decision-makers.</p>
-                </div>
-                <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 space-y-1">
-                  <span className="font-bold text-emerald-900 block">Meeting Booking Rate: &gt;18%</span>
-                  <p className="text-slate-600 text-[10px]">Conversion to 20-minute partner Zoom discovery calls.</p>
-                </div>
-                <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100 space-y-1">
-                  <span className="font-bold text-purple-900 block">CRM Handoff Accuracy: 100%</span>
-                  <p className="text-slate-600 text-[10px]">Direct payload staging into Bitrix24 crm.lead.add.</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Disclaimers & Assumptions */}
-            <div className="pt-4 border-t border-slate-200 text-[10px] text-slate-400 space-y-1">
-              <p>
-                <strong>Confidentiality & Compliance Notice:</strong> This report is produced strictly for client demonstration and strategic evaluation. All simulation and demonstration metrics are verified in sandbox environment. Real outbound campaigns require formal partner mandate.
-              </p>
-              <p>
-                Certified by SENVO Autonomous Advisory Delivery System &bull; Dublin Practice Hub.
-              </p>
-            </div>
-          </div>
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <CommercialValueModel />
         </div>
       )}
     </div>

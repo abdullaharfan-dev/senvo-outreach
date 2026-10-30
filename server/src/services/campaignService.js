@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { query, get, run } from '../db/database.js';
+import { invalidateOverviewCache } from './analyticsService.js';
 
 // Active in-memory jobs tracking background simulation tasks
 const activeJobs = new Map();
@@ -74,6 +75,7 @@ export const createCampaign = async ({ name, channel, template_id, template_body
     [uuidv4(), campaignId, `Created campaign '${name}' for channel: ${channel} with ${eligibleLeads.length} recipients`, now]
   );
 
+  invalidateOverviewCache();
   return await getCampaignById(campaignId);
 };
 
@@ -196,6 +198,7 @@ export const pauseCampaign = async (id) => {
     [uuidv4(), id, now]
   );
 
+  invalidateOverviewCache();
   return await getCampaignById(id);
 };
 

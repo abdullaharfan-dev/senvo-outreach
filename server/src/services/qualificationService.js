@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { query, get, run } from '../db/database.js';
+import { invalidateOverviewCache } from './analyticsService.js';
 
 export const getQualifiedLeads = async () => {
   const leads = await query(`
@@ -106,6 +107,8 @@ export const qualifyLead = async ({ leadId, requested_service, qualification_sum
      VALUES (?, 'AI SDR', 'LEAD_QUALIFIED', 'lead', ?, ?, ?)`,
     [uuidv4(), leadId, `Qualified prospect ${lead.company_name} for ${requested_service || 'Corporate Advisory'} - Staged for Bitrix24`, now]
   );
+
+  invalidateOverviewCache();
 
   return { success: true, handoffId, leadId, bitrixPayloadPreview };
 };

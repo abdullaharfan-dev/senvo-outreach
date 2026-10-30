@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { query, get, run } from '../db/database.js';
 import { assessIncomingMessage } from './aiService.js';
 import { qualifyLead } from './qualificationService.js';
+import { invalidateOverviewCache } from './analyticsService.js';
 
 export const getConversations = async ({ channel = '', status = '', search = '' } = {}) => {
   let sql = `
@@ -93,6 +94,7 @@ export const sendMessage = async (conversationId, { content, is_ai_generated = f
     [uuidv4(), is_ai_generated ? 'AI SDR' : 'User', msgId, `Simulated send via ${conv.channel} to conversation ${conversationId}`, now]
   );
 
+  invalidateOverviewCache();
   return await getConversationDetails(conversationId);
 };
 
@@ -245,6 +247,8 @@ export const simulateIncomingReply = async ({ conversationId, leadId, channel, c
       [uuidv4(), convId, `AI evaluation error: ${aiResult.error}`, now]
     );
   }
+
+  invalidateOverviewCache();
 
   return {
     conversation: await getConversationDetails(convId),

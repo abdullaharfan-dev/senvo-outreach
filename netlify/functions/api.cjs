@@ -70249,13 +70249,6 @@ var require_pg_pool = __commonJS({
   }
 });
 
-// server/src/db/empty_shim.cjs
-var require_empty_shim = __commonJS({
-  "server/src/db/empty_shim.cjs"(exports2, module2) {
-    module2.exports = null;
-  }
-});
-
 // server/node_modules/pg/lib/native/query.js
 var require_query3 = __commonJS({
   "server/node_modules/pg/lib/native/query.js"(exports2, module2) {
@@ -70405,7 +70398,7 @@ var require_client2 = __commonJS({
     var nodeUtils = require("util");
     var Native;
     try {
-      Native = require_empty_shim();
+      Native = require("pg-native");
     } catch (e) {
       throw e;
     }
@@ -72408,24 +72401,20 @@ if (isPostgres) {
   pgPool = new esm_default.Pool({
     connectionString: effectiveDbUrl,
     ssl: { rejectUnauthorized: false },
-    max: 10,
-    idleTimeoutMillis: 3e4
+    max: 4,
+    idleTimeoutMillis: 3e4,
+    connectionTimeoutMillis: 1e4,
+    keepAlive: true
   });
   pgPool.on("error", (err) => {
     console.error("[DB] Unexpected error on idle PostgreSQL client:", err);
   });
-  pgPool.on("connect", async (client) => {
-    try {
-      await client.query("CREATE SCHEMA IF NOT EXISTS senvo_outreach;");
-      await client.query("SET search_path TO senvo_outreach;");
-    } catch (e) {
-      console.warn("[DB] Setting search_path to senvo_outreach warning:", e.message);
-    }
+  pgPool.on("connect", () => {
   });
 }
 var getSqlite = async () => {
   if (sqliteDb) return sqliteDb;
-  const { default: sqlite3Module } = await Promise.resolve().then(() => __toESM(require_empty_shim(), 1));
+  const { default: sqlite3Module } = await import("sqlite3");
   const dataDir = process.env.DATA_DIR || import_path.default.resolve(__dirname, "../../data");
   if (!import_fs.default.existsSync(dataDir)) {
     import_fs.default.mkdirSync(dataDir, { recursive: true });
@@ -72454,8 +72443,18 @@ var convertPlaceholders = (sql) => {
 var query = async (sql, params = []) => {
   if (isPostgres) {
     const pgSql = convertPlaceholders(sql);
-    const result = await pgPool.query(pgSql, params);
-    return result.rows;
+    try {
+      const result = await pgPool.query(pgSql, params);
+      return result.rows;
+    } catch (err) {
+      if (err.message && (err.message.includes("Connection terminated") || err.message.includes("ECONNRESET") || err.message.includes("closed"))) {
+        console.warn("[DB] Retrying transient PostgreSQL connection drop in query()...");
+        await new Promise((r) => setTimeout(r, 150));
+        const retryResult = await pgPool.query(pgSql, params);
+        return retryResult.rows;
+      }
+      throw err;
+    }
   } else {
     const db = await getSqlite();
     return new Promise((resolve, reject) => {
@@ -72469,8 +72468,18 @@ var query = async (sql, params = []) => {
 var get = async (sql, params = []) => {
   if (isPostgres) {
     const pgSql = convertPlaceholders(sql);
-    const result = await pgPool.query(pgSql, params);
-    return result.rows[0];
+    try {
+      const result = await pgPool.query(pgSql, params);
+      return result.rows[0];
+    } catch (err) {
+      if (err.message && (err.message.includes("Connection terminated") || err.message.includes("ECONNRESET") || err.message.includes("closed"))) {
+        console.warn("[DB] Retrying transient PostgreSQL connection drop in get()...");
+        await new Promise((r) => setTimeout(r, 150));
+        const retryResult = await pgPool.query(pgSql, params);
+        return retryResult.rows[0];
+      }
+      throw err;
+    }
   } else {
     const db = await getSqlite();
     return new Promise((resolve, reject) => {
@@ -72484,8 +72493,18 @@ var get = async (sql, params = []) => {
 var run = async (sql, params = []) => {
   if (isPostgres) {
     const pgSql = convertPlaceholders(sql);
-    const result = await pgPool.query(pgSql, params);
-    return { changes: result.rowCount, lastID: null };
+    try {
+      const result = await pgPool.query(pgSql, params);
+      return { changes: result.rowCount, lastID: null };
+    } catch (err) {
+      if (err.message && (err.message.includes("Connection terminated") || err.message.includes("ECONNRESET") || err.message.includes("closed"))) {
+        console.warn("[DB] Retrying transient PostgreSQL connection drop in run()...");
+        await new Promise((r) => setTimeout(r, 150));
+        const retryResult = await pgPool.query(pgSql, params);
+        return { changes: retryResult.rowCount, lastID: null };
+      }
+      throw err;
+    }
   } else {
     const db = await getSqlite();
     return new Promise((resolve, reject) => {
@@ -72734,6 +72753,114 @@ var restoreFromSnapshot = async () => {
   console.log("[Snapshot] Demo dataset successfully restored.");
 };
 
+// server/src/services/analyticsService.js
+var cachedOverview = null;
+var cacheExpiry = 0;
+var CACHE_TTL_MS = 15e3;
+var invalidateOverviewCache = () => {
+  cachedOverview = null;
+  cacheExpiry = 0;
+};
+var getOverviewMetrics = async (forceFresh = false) => {
+  const now = Date.now();
+  if (!forceFresh && cachedOverview && now < cacheExpiry) {
+    return cachedOverview;
+  }
+  const scalarSql = `
+    SELECT
+      (SELECT COUNT(*) FROM leads) as total_leads,
+      (SELECT COUNT(*) FROM leads WHERE status = 'in_campaign') as in_campaign,
+      (SELECT COUNT(*) FROM leads WHERE status = 'qualified') as qualified,
+      (SELECT COUNT(*) FROM campaigns) as active_campaigns,
+      (SELECT COALESCE(SUM(sent_count), 0) FROM campaigns) as total_sent,
+      (SELECT COUNT(*) FROM campaign_recipients) as total_recipients,
+      (SELECT COUNT(*) FROM campaign_recipients WHERE status = 'queued') as queued,
+      (SELECT COUNT(*) FROM campaign_recipients WHERE status = 'simulated_sent') as simulated_sent,
+      (SELECT COUNT(*) FROM conversations) as total_conversations,
+      (SELECT COUNT(*) FROM conversations WHERE status = 'review_needed') as reviews_needed,
+      (SELECT COUNT(*) FROM conversations WHERE status = 'waiting_ai') as waiting_ai,
+      (SELECT COUNT(*) FROM messages) as total_messages,
+      (SELECT COUNT(*) FROM messages WHERE direction = 'inbound') as inbound_replies,
+      (SELECT COUNT(*) FROM handoffs) as handoffs,
+      (SELECT COUNT(*) FROM ai_assessments WHERE intent IN ('interested', 'demo_request', 'pricing_inquiry')) as interested_leads,
+      (SELECT COUNT(*) FROM connected_accounts WHERE connection_status LIKE '%connected%') as connected_channels
+  `;
+  const attentionRepliesSql = `
+    SELECT c.id as conversation_id, c.channel, c.status as conversation_status, c.last_message_at,
+      l.company_name, l.contact_name, l.city, l.priority,
+      (SELECT content FROM messages WHERE conversation_id = c.id AND direction = 'inbound' ORDER BY created_at DESC LIMIT 1) as latest_inbound,
+      (SELECT intent FROM ai_assessments WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as intent
+    FROM conversations c
+    JOIN leads l ON c.lead_id = l.id
+    WHERE c.status IN ('review_needed', 'waiting_ai', 'open')
+    ORDER BY c.last_message_at DESC
+    LIMIT 6
+  `;
+  const [scalarStats, channelBreakdownRaw, intentBreakdownRaw, recentActivity, attentionReplies] = await Promise.all([
+    get(scalarSql),
+    query("SELECT channel, COUNT(*) as count FROM conversations GROUP BY channel"),
+    query("SELECT intent, COUNT(*) as count FROM ai_assessments GROUP BY intent"),
+    query("SELECT * FROM activity_events ORDER BY created_at DESC LIMIT 15"),
+    query(attentionRepliesSql)
+  ]);
+  const totalLeads = Number(scalarStats?.total_leads) || 0;
+  const inCampaign = Number(scalarStats?.in_campaign) || 0;
+  const qualified = Number(scalarStats?.qualified) || 0;
+  const activeCampaigns = Number(scalarStats?.active_campaigns) || 0;
+  const totalSent = Number(scalarStats?.total_sent) || 0;
+  const totalRecipients = Number(scalarStats?.total_recipients) || 0;
+  const queued = Number(scalarStats?.queued) || 0;
+  const simulatedSent = Number(scalarStats?.simulated_sent) || 0;
+  const totalConversations = Number(scalarStats?.total_conversations) || 0;
+  const reviewsNeeded = Number(scalarStats?.reviews_needed) || 0;
+  const waitingAi = Number(scalarStats?.waiting_ai) || 0;
+  const replied = Number(scalarStats?.inbound_replies) || 0;
+  const handoffs = Number(scalarStats?.handoffs) || 0;
+  const interested = Number(scalarStats?.interested_leads) || 0;
+  const connectedChannels = Number(scalarStats?.connected_channels) || 7;
+  const channelBreakdown = (channelBreakdownRaw || []).map((r) => ({
+    channel: r.channel,
+    count: Number(r.count) || 0
+  }));
+  const intentBreakdown = (intentBreakdownRaw || []).map((r) => ({
+    intent: r.intent,
+    count: Number(r.count) || 0
+  }));
+  const result = {
+    summary: {
+      total_leads: totalLeads,
+      in_campaign: inCampaign,
+      simulated_sent: simulatedSent,
+      queued,
+      inbound_replies: replied,
+      qualified_leads: qualified,
+      staged_handoffs: handoffs,
+      active_campaigns: activeCampaigns,
+      total_conversations: totalConversations,
+      reviews_needed: reviewsNeeded,
+      waiting_ai: waitingAi,
+      interested_leads: interested,
+      connected_channels: connectedChannels
+    },
+    funnel: [
+      { stage: "Total Leads Registered", count: totalLeads, percentage: 100 },
+      { stage: "Audience in Outreach", count: simulatedSent + inCampaign, percentage: totalLeads ? Math.round((simulatedSent + inCampaign) / totalLeads * 100) : 0 },
+      { stage: "Simulated Outbound Sent", count: simulatedSent, percentage: totalLeads ? Math.round(simulatedSent / totalLeads * 100) : 0 },
+      { stage: "Inbound Responses", count: replied, percentage: simulatedSent ? Math.round(replied / (simulatedSent || 1) * 100) : 0 },
+      { stage: "AI Assessed & Qualified", count: qualified, percentage: replied ? Math.round(qualified / replied * 100) : 0 },
+      { stage: "Staged CRM Handoffs", count: handoffs, percentage: qualified ? Math.round(handoffs / (qualified || 1) * 100) : 0 }
+    ],
+    channel_breakdown: channelBreakdown,
+    intent_breakdown: intentBreakdown,
+    recent_activity: recentActivity || [],
+    attention_replies: attentionReplies || []
+  };
+  cachedOverview = result;
+  cacheExpiry = Date.now() + CACHE_TTL_MS;
+  return result;
+};
+var analyticsService_default = { getOverviewMetrics, invalidateOverviewCache };
+
 // server/src/services/leadService.js
 var getLeads = async ({ search = "", industry = "", priority = "", status = "", page = 1, limit = 50 } = {}) => {
   let sql = "SELECT * FROM leads WHERE 1=1";
@@ -72792,6 +72919,7 @@ var createLead = async (data) => {
      VALUES (?, 'User', 'LEAD_CREATED', 'lead', ?, ?, ?)`,
     [v4_default(), id, `Created lead ${data.company_name}`, now]
   );
+  invalidateOverviewCache();
   return await getLeadById(id);
 };
 var updateLead = async (id, data) => {
@@ -72810,6 +72938,7 @@ var updateLead = async (id, data) => {
   params.push(now);
   params.push(id);
   await run(`UPDATE leads SET ${fields.join(", ")} WHERE id = ?`, params);
+  invalidateOverviewCache();
   return await getLeadById(id);
 };
 var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -72933,6 +73062,7 @@ var commitImportBatch = async (approvedRecords, sourceName = "Spreadsheet Import
      VALUES (?, 'System', 'LEADS_BATCH_COMMITTED', 'lead', ?, ?)`,
     [v4_default(), `Committed ${committed} validated corporate leads into database from ${sourceName}`, now]
   );
+  invalidateOverviewCache();
   return { committed, createdIds };
 };
 var getSegments = async () => {
@@ -73069,6 +73199,7 @@ var createCampaign = async ({ name, channel, template_id, template_body, target_
      VALUES (?, 'Sales Team', 'CAMPAIGN_CREATED', 'campaign', ?, ?, ?)`,
     [v4_default(), campaignId, `Created campaign '${name}' for channel: ${channel} with ${eligibleLeads.length} recipients`, now]
   );
+  invalidateOverviewCache();
   return await getCampaignById(campaignId);
 };
 var startCampaign = async (id) => {
@@ -73157,6 +73288,7 @@ var pauseCampaign = async (id) => {
      VALUES (?, 'User', 'CAMPAIGN_PAUSED', 'campaign', ?, 'Campaign execution paused by user', ?)`,
     [v4_default(), id, now]
   );
+  invalidateOverviewCache();
   return await getCampaignById(id);
 };
 var campaignService_default = { getCampaigns, getCampaignById, createCampaign, startCampaign, pauseCampaign };
@@ -73426,6 +73558,7 @@ var qualifyLead = async ({ leadId, requested_service, qualification_summary, ass
      VALUES (?, 'AI SDR', 'LEAD_QUALIFIED', 'lead', ?, ?, ?)`,
     [v4_default(), leadId, `Qualified prospect ${lead.company_name} for ${requested_service || "Corporate Advisory"} - Staged for Bitrix24`, now]
   );
+  invalidateOverviewCache();
   return { success: true, handoffId, leadId, bitrixPayloadPreview };
 };
 var qualificationService_default = { getQualifiedLeads, qualifyLead };
@@ -73502,6 +73635,7 @@ var sendMessage = async (conversationId, { content, is_ai_generated = false, sen
      VALUES (?, ?, 'MESSAGE_SENT', 'message', ?, ?, ?)`,
     [v4_default(), is_ai_generated ? "AI SDR" : "User", msgId, `Simulated send via ${conv.channel} to conversation ${conversationId}`, now]
   );
+  invalidateOverviewCache();
   return await getConversationDetails(conversationId);
 };
 var simulateIncomingReply = async ({ conversationId, leadId, channel, content, senderName, auto_respond = true }) => {
@@ -73618,6 +73752,7 @@ var simulateIncomingReply = async ({ conversationId, leadId, channel, content, s
       [v4_default(), convId, `AI evaluation error: ${aiResult.error}`, now]
     );
   }
+  invalidateOverviewCache();
   return {
     conversation: await getConversationDetails(convId),
     ai_result: aiResult,
@@ -73677,91 +73812,6 @@ var reassessConversation = async (convId) => {
   }
 };
 var inboxService_default = { getConversations, getConversationDetails, sendMessage, simulateIncomingReply, reassessConversation };
-
-// server/src/services/analyticsService.js
-var getOverviewMetrics = async () => {
-  const totalLeadsRow = await get("SELECT COUNT(*) as count FROM leads");
-  const statusCounts = await query("SELECT status, COUNT(*) as count FROM leads GROUP BY status");
-  const priorityCounts = await query("SELECT priority, COUNT(*) as count FROM leads GROUP BY priority");
-  const campaignsRow = await get("SELECT COUNT(*) as count, SUM(sent_count) as total_sent FROM campaigns");
-  const totalRecipientsRow = await get("SELECT COUNT(*) as count FROM campaign_recipients");
-  const queuedRecipientsRow = await get("SELECT COUNT(*) as count FROM campaign_recipients WHERE status = 'queued'");
-  const sentRecipientsRow = await get("SELECT COUNT(*) as count FROM campaign_recipients WHERE status = 'simulated_sent'");
-  const convosRow = await get("SELECT COUNT(*) as count FROM conversations");
-  const messagesRow = await get("SELECT COUNT(*) as count FROM messages");
-  const repliesRow = await get("SELECT COUNT(*) as count FROM messages WHERE direction = 'inbound'");
-  const qualifiedRow = await get("SELECT COUNT(*) as count FROM leads WHERE status = 'qualified'");
-  const handoffsRow = await get("SELECT COUNT(*) as count FROM handoffs");
-  const reviewsNeededRow = await get("SELECT COUNT(*) as count FROM conversations WHERE status = 'review_needed'");
-  const waitingAiRow = await get("SELECT COUNT(*) as count FROM conversations WHERE status = 'waiting_ai'");
-  const interestedRow = await get("SELECT COUNT(*) as count FROM ai_assessments WHERE intent IN ('interested', 'demo_request', 'pricing_inquiry')");
-  const connectedAccountsRow = await get("SELECT COUNT(*) as count FROM connected_accounts WHERE connection_status LIKE '%connected%'");
-  const channelBreakdown = await query(`
-    SELECT channel, COUNT(*) as count 
-    FROM conversations 
-    GROUP BY channel
-  `);
-  const intentBreakdown = await query(`
-    SELECT intent, COUNT(*) as count 
-    FROM ai_assessments 
-    GROUP BY intent
-  `);
-  const recentActivity = await query(`
-    SELECT * FROM activity_events 
-    ORDER BY created_at DESC 
-    LIMIT 15
-  `);
-  const attentionReplies = await query(`
-    SELECT c.id as conversation_id, c.channel, c.status as conversation_status, c.last_message_at,
-      l.company_name, l.contact_name, l.city, l.priority,
-      (SELECT content FROM messages WHERE conversation_id = c.id AND direction = 'inbound' ORDER BY created_at DESC LIMIT 1) as latest_inbound,
-      (SELECT intent FROM ai_assessments WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as intent
-    FROM conversations c
-    JOIN leads l ON c.lead_id = l.id
-    WHERE c.status IN ('review_needed', 'waiting_ai', 'open')
-    ORDER BY c.last_message_at DESC
-    LIMIT 6
-  `);
-  const leadStatusMap = {};
-  statusCounts.forEach((r) => {
-    leadStatusMap[r.status] = r.count;
-  });
-  const totalLeads = totalLeadsRow.count || 0;
-  const inCampaign = leadStatusMap["in_campaign"] || 0;
-  const replied = repliesRow.count || 0;
-  const qualified = qualifiedRow.count || 0;
-  const handoffs = handoffsRow.count || 0;
-  return {
-    summary: {
-      total_leads: totalLeads,
-      in_campaign: inCampaign,
-      simulated_sent: sentRecipientsRow.count || 0,
-      queued: queuedRecipientsRow.count || 0,
-      inbound_replies: replied,
-      qualified_leads: qualified,
-      staged_handoffs: handoffs,
-      active_campaigns: campaignsRow.count || 0,
-      total_conversations: convosRow.count || 0,
-      reviews_needed: reviewsNeededRow?.count || 0,
-      waiting_ai: waitingAiRow?.count || 0,
-      interested_leads: interestedRow?.count || 0,
-      connected_channels: connectedAccountsRow?.count || 7
-    },
-    funnel: [
-      { stage: "Total Leads Registered", count: totalLeads, percentage: 100 },
-      { stage: "Audience in Outreach", count: (sentRecipientsRow.count || 0) + inCampaign, percentage: totalLeads ? Math.round(((sentRecipientsRow.count || 0) + inCampaign) / totalLeads * 100) : 0 },
-      { stage: "Simulated Outbound Sent", count: sentRecipientsRow.count || 0, percentage: totalLeads ? Math.round((sentRecipientsRow.count || 0) / totalLeads * 100) : 0 },
-      { stage: "Inbound Responses", count: replied, percentage: sentRecipientsRow.count || 0 ? Math.round(replied / (sentRecipientsRow.count || 1) * 100) : 0 },
-      { stage: "AI Assessed & Qualified", count: qualified, percentage: replied ? Math.round(qualified / replied * 100) : 0 },
-      { stage: "Staged CRM Handoffs", count: handoffs, percentage: qualified ? Math.round(handoffs / (qualified || 1) * 100) : 0 }
-    ],
-    channel_breakdown: channelBreakdown,
-    intent_breakdown: intentBreakdown,
-    recent_activity: recentActivity,
-    attention_replies: attentionReplies
-  };
-};
-var analyticsService_default = { getOverviewMetrics };
 
 // server/src/db/seed.js
 var seedData = async () => {

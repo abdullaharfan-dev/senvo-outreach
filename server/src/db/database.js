@@ -28,22 +28,19 @@ if (isPostgres) {
   pgPool = new pg.Pool({
     connectionString: effectiveDbUrl,
     ssl: { rejectUnauthorized: false },
-    max: 10,
+    max: 4,
     idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    keepAlive: true,
   });
 
   pgPool.on('error', (err) => {
     console.error('[DB] Unexpected error on idle PostgreSQL client:', err);
   });
 
-  // Strict isolation: ensure all queries run within senvo_outreach schema
-  pgPool.on('connect', async (client) => {
-    try {
-      await client.query('CREATE SCHEMA IF NOT EXISTS senvo_outreach;');
-      await client.query('SET search_path TO senvo_outreach;');
-    } catch (e) {
-      console.warn('[DB] Setting search_path to senvo_outreach warning:', e.message);
-    }
+  // Strict isolation: search_path=senvo_outreach is enforced directly via connection options
+  pgPool.on('connect', () => {
+    // Client connection established with senvo_outreach search_path
   });
 }
 
@@ -88,8 +85,18 @@ const convertPlaceholders = (sql) => {
 export const query = async (sql, params = []) => {
   if (isPostgres) {
     const pgSql = convertPlaceholders(sql);
-    const result = await pgPool.query(pgSql, params);
-    return result.rows;
+    try {
+      const result = await pgPool.query(pgSql, params);
+      return result.rows;
+    } catch (err) {
+      if (err.message && (err.message.includes('Connection terminated') || err.message.includes('ECONNRESET') || err.message.includes('closed'))) {
+        console.warn('[DB] Retrying transient PostgreSQL connection drop in query()...');
+        await new Promise(r => setTimeout(r, 150));
+        const retryResult = await pgPool.query(pgSql, params);
+        return retryResult.rows;
+      }
+      throw err;
+    }
   } else {
     const db = await getSqlite();
     return new Promise((resolve, reject) => {
@@ -107,8 +114,18 @@ export const query = async (sql, params = []) => {
 export const get = async (sql, params = []) => {
   if (isPostgres) {
     const pgSql = convertPlaceholders(sql);
-    const result = await pgPool.query(pgSql, params);
-    return result.rows[0];
+    try {
+      const result = await pgPool.query(pgSql, params);
+      return result.rows[0];
+    } catch (err) {
+      if (err.message && (err.message.includes('Connection terminated') || err.message.includes('ECONNRESET') || err.message.includes('closed'))) {
+        console.warn('[DB] Retrying transient PostgreSQL connection drop in get()...');
+        await new Promise(r => setTimeout(r, 150));
+        const retryResult = await pgPool.query(pgSql, params);
+        return retryResult.rows[0];
+      }
+      throw err;
+    }
   } else {
     const db = await getSqlite();
     return new Promise((resolve, reject) => {
@@ -126,8 +143,18 @@ export const get = async (sql, params = []) => {
 export const run = async (sql, params = []) => {
   if (isPostgres) {
     const pgSql = convertPlaceholders(sql);
-    const result = await pgPool.query(pgSql, params);
-    return { changes: result.rowCount, lastID: null };
+    try {
+      const result = await pgPool.query(pgSql, params);
+      return { changes: result.rowCount, lastID: null };
+    } catch (err) {
+      if (err.message && (err.message.includes('Connection terminated') || err.message.includes('ECONNRESET') || err.message.includes('closed'))) {
+        console.warn('[DB] Retrying transient PostgreSQL connection drop in run()...');
+        await new Promise(r => setTimeout(r, 150));
+        const retryResult = await pgPool.query(pgSql, params);
+        return { changes: retryResult.rowCount, lastID: null };
+      }
+      throw err;
+    }
   } else {
     const db = await getSqlite();
     return new Promise((resolve, reject) => {

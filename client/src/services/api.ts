@@ -61,10 +61,30 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
   return data as T;
 }
 
+let inFlightOverviewPromise: Promise<OverviewMetrics> | null = null;
+let lastOverviewCache: { data: OverviewMetrics; timestamp: number } | null = null;
+
 export const api = {
-  // Overview
-  getOverview: async (): Promise<OverviewMetrics> => {
-    return apiRequest<OverviewMetrics>('/overview');
+  // Overview with in-flight deduplication and 3-second cache
+  getOverview: async (forceFresh = false): Promise<OverviewMetrics> => {
+    const now = Date.now();
+    if (!forceFresh && lastOverviewCache && now - lastOverviewCache.timestamp < 3000) {
+      return lastOverviewCache.data;
+    }
+    if (inFlightOverviewPromise) {
+      return inFlightOverviewPromise;
+    }
+    inFlightOverviewPromise = apiRequest<OverviewMetrics>('/overview')
+      .then((data) => {
+        lastOverviewCache = { data, timestamp: Date.now() };
+        inFlightOverviewPromise = null;
+        return data;
+      })
+      .catch((err) => {
+        inFlightOverviewPromise = null;
+        throw err;
+      });
+    return inFlightOverviewPromise;
   },
 
   // Leads
