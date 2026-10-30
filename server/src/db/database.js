@@ -20,8 +20,13 @@ let pgPool = null;
 
 if (isPostgres) {
   console.log('[DB] Connecting to managed cloud PostgreSQL database (senvo_outreach schema)...');
+  let effectiveDbUrl = DATABASE_URL;
+  if (!effectiveDbUrl.includes('search_path')) {
+    effectiveDbUrl += (effectiveDbUrl.includes('?') ? '&' : '?') + 'options=-c%20search_path=senvo_outreach';
+  }
+
   pgPool = new pg.Pool({
-    connectionString: DATABASE_URL,
+    connectionString: effectiveDbUrl,
     ssl: { rejectUnauthorized: false },
     max: 10,
     idleTimeoutMillis: 30000,

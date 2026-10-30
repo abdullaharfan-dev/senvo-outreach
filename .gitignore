@@ -11,3 +11,6 @@ Thumbs.db
 cloudflared.exe
 *.png
 recordings/
+
+# Local Netlify folder
+.netlify
